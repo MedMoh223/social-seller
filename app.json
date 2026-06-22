@@ -3,6 +3,7 @@
     "name": "social-seller",
     "slug": "social-seller",
     "version": "1.0.0",
+    "scheme": "socialseller",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,6 +21,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font"
+    ]
   }
 }
