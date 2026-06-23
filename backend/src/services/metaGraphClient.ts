@@ -3,6 +3,12 @@ import { env } from '../config/env';
 import { WebhookSignatureError } from '../lib/httpErrors';
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
+// Send API calls pinned to v19.0 per the task spec — kept separate from
+// GRAPH_API_BASE (used for OAuth/discovery) rather than bumping every
+// Graph call to the same version, since only these two endpoints were
+// asked for and Meta's basic messaging endpoints are stable across
+// these minor version gaps.
+const GRAPH_API_MESSAGING_BASE = 'https://graph.facebook.com/v19.0';
 
 // Shared by both WhatsApp Cloud API and the Facebook Messenger Platform:
 // both sign webhook deliveries the same way (HMAC-SHA256 over the raw
@@ -141,4 +147,70 @@ export async function graphPost<T>(path: string, accessToken: string, body: Reco
   }
 
   return (await response.json()) as T;
+}
+
+interface WhatsAppSendResponse {
+  messages?: Array<{ id: string }>;
+}
+
+// Returns the WhatsApp message id (used as messages.external_message_id
+// so later delivery-status webhooks can match this row).
+export async function sendWhatsAppMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  text: string,
+): Promise<string> {
+  const response = await fetch(`${GRAPH_API_MESSAGING_BASE}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`WhatsApp send message failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as WhatsAppSendResponse;
+  const messageId = data.messages?.[0]?.id;
+
+  if (!messageId) {
+    throw new Error('WhatsApp send message response missing message id');
+  }
+
+  return messageId;
+}
+
+interface FacebookSendResponse {
+  recipient_id?: string;
+  message_id?: string;
+}
+
+// Returns the Facebook message id (used as messages.external_message_id).
+export async function sendFacebookMessage(accessToken: string, recipientId: string, text: string): Promise<string> {
+  const response = await fetch(`${GRAPH_API_MESSAGING_BASE}/me/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      message: { text },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Facebook send message failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as FacebookSendResponse;
+
+  if (!data.message_id) {
+    throw new Error('Facebook send message response missing message_id');
+  }
+
+  return data.message_id;
 }

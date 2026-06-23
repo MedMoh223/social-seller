@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -51,6 +52,9 @@ export default function ConversationScreen() {
   const [conversation, setConversation] = useState<ConversationInfo | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [draftText, setDraftText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -91,8 +95,72 @@ export default function ConversationScreen() {
     };
   }, [id]);
 
+  const handleSend = async () => {
+    const content = draftText.trim();
+    if (!content || isSending || !id) return;
+
+    setSendError(null);
+    setIsSending(true);
+    setDraftText('');
+
+    const tempId = `temp-${Date.now()}`;
+
+    setMessages((current) => [
+      ...current,
+      { id: tempId, direction: 'outbound', content, delivery_status: 'pending', created_at: new Date().toISOString() },
+    ]);
+
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!apiUrl || !session) {
+        throw new Error('not_ready');
+      }
+
+      const response = await fetch(`${apiUrl}/conversations/${id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        throw new Error('send_failed');
+      }
+
+      const { message } = await response.json();
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === tempId
+            ? {
+                id: message.id,
+                direction: 'outbound',
+                content: message.content,
+                delivery_status: message.delivery_status,
+                created_at: message.created_at,
+              }
+            : item,
+        ),
+      );
+    } catch {
+      setSendError("Échec de l'envoi. Réessayez.");
+      setMessages((current) =>
+        current.map((item) => (item.id === tempId ? { ...item, delivery_status: 'failed' } : item)),
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const platformLabel = conversation ? PLATFORM_LABELS[conversation.platform] ?? conversation.platform : '';
   const contactName = conversation?.customer_name || conversation?.customer_id || 'Client';
+  const canSend = draftText.trim().length > 0 && !isSending;
 
   // Query is ASC (oldest first) as the data source of truth; the
   // inverted FlatList below needs DESC (newest first) so item 0 lands
@@ -159,14 +227,28 @@ export default function ConversationScreen() {
       )}
 
       <View style={styles.composer}>
-        <TextInput
-          style={styles.composerInput}
-          placeholder="Envoi de messages — bientôt disponible"
-          placeholderTextColor="#94A3B8"
-          editable={false}
-        />
-        <View style={styles.sendButtonDisabled}>
-          <Feather name="send" size={16} color="#94A3B8" />
+        {sendError ? <Text style={styles.composerError}>{sendError}</Text> : null}
+        <View style={styles.composerRow}>
+          <TextInput
+            style={styles.composerInput}
+            placeholder="Écrire un message..."
+            placeholderTextColor="#94A3B8"
+            value={draftText}
+            onChangeText={setDraftText}
+            editable={!isSending}
+            multiline
+          />
+          <Pressable
+            style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!canSend}
+          >
+            {isSending ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Feather name="send" size={16} color={canSend ? '#FFFFFF' : '#94A3B8'} />
+            )}
+          </Pressable>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -203,14 +285,14 @@ const styles = StyleSheet.create({
   outboundMeta: { fontSize: 10, color: '#C7D2FE' },
   deliveryIcon: { marginLeft: 4 },
   composer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
   },
+  composerError: { color: '#DC2626', fontSize: 12, marginBottom: 8 },
+  composerRow: { flexDirection: 'row', alignItems: 'flex-end' },
   composerInput: {
     flex: 1,
     backgroundColor: '#F1F5F9',
@@ -220,13 +302,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
     marginRight: 10,
+    maxHeight: 100,
   },
-  sendButtonDisabled: {
+  sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#6366F1',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sendButtonDisabled: { backgroundColor: '#E2E8F0' },
 });

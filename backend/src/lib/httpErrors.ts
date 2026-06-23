@@ -52,3 +52,9 @@ export class TooManyRequestsError extends AppError {
     super(429, 'too_many_requests', publicMessage);
   }
 }
+
+export class NotImplementedError extends AppError {
+  constructor(publicMessage = 'Fonctionnalité pas encore disponible.') {
+    super(501, 'not_implemented', publicMessage);
+  }
+}

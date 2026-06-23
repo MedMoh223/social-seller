@@ -83,7 +83,10 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
       wabaId: waba.id,
       displayName: phoneNumber.verified_name || phoneNumber.display_phone_number,
       accessToken: tokenResponse.access_token,
-      metadata: { display_phone_number: phoneNumber.display_phone_number },
+      metadata: {
+        display_phone_number: phoneNumber.display_phone_number,
+        phone_number_id: phoneNumber.id,
+      },
     });
 
     await recordAuditLog({
