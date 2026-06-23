@@ -12,9 +12,9 @@ export const facebookOAuthRouter = Router();
 const CALLBACK_PATH = '/oauth/facebook/callback';
 
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
-  const params = new URLSearchParams({ platform: 'facebook', status });
+  const params = new URLSearchParams({ platform: 'facebook' });
   if (reason) params.set('reason', reason);
-  res.redirect(`socialseller://connections/callback?${params.toString()}`);
+  res.redirect(`socialseller://oauth-${status}?${params.toString()}`);
 }
 
 facebookOAuthRouter.get('/callback', async (req, res) => {

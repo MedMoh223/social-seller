@@ -113,10 +113,19 @@ export default function ChannelsScreen() {
 
       const { authorizationUrl } = await response.json();
 
-      // The deep link's own query params are an untrusted client-side
-      // hop — refetch /connections afterward instead of trusting them,
-      // regardless of how the auth session closed.
-      await WebBrowser.openAuthSessionAsync(authorizationUrl, 'socialseller://connections/callback');
+      // Match on the bare scheme, not a specific path: the callback
+      // redirects to either socialseller://oauth-success or
+      // socialseller://oauth-error, and ASWebAuthenticationSession on
+      // iOS only matches by scheme anyway. The deep link's own query
+      // params are an untrusted client-side hop, so /connections is
+      // still refetched below regardless of outcome — this result is
+      // only used to pick a more specific error message.
+      const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, 'socialseller://');
+
+      if (result.type === 'success' && result.url.startsWith('socialseller://oauth-error')) {
+        setErrorMessage('La connexion a échoué. Réessayez plus tard.');
+      }
+
       await fetchConnections();
     } catch {
       setErrorMessage('Impossible de lancer la connexion. Réessayez plus tard.');

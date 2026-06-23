@@ -12,9 +12,9 @@ export const whatsappOAuthRouter = Router();
 const CALLBACK_PATH = '/oauth/whatsapp/callback';
 
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
-  const params = new URLSearchParams({ platform: 'whatsapp', status });
+  const params = new URLSearchParams({ platform: 'whatsapp' });
   if (reason) params.set('reason', reason);
-  res.redirect(`socialseller://connections/callback?${params.toString()}`);
+  res.redirect(`socialseller://oauth-${status}?${params.toString()}`);
 }
 
 whatsappOAuthRouter.get('/callback', async (req, res) => {

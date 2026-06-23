@@ -12,9 +12,9 @@ export const tiktokOAuthRouter = Router();
 const CALLBACK_PATH = '/oauth/tiktok/callback';
 
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
-  const params = new URLSearchParams({ platform: 'tiktok', status });
+  const params = new URLSearchParams({ platform: 'tiktok' });
   if (reason) params.set('reason', reason);
-  res.redirect(`socialseller://connections/callback?${params.toString()}`);
+  res.redirect(`socialseller://oauth-${status}?${params.toString()}`);
 }
 
 tiktokOAuthRouter.get('/callback', async (req, res) => {
