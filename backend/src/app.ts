@@ -23,6 +23,12 @@ export function createApp() {
     res.status(200).json({ status: 'ok' });
   });
 
+  // TikTok domain verification file
+  app.get('/tiktokBOBsOsmw9286ObJVbqEnky2uVsM59vBw.txt', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain');
+    res.send('tiktok-developers-site-verification=BOBsOsmw9286ObJVbqEnky2uVsM59vBw');
+  });
+
   // Webhook routes: raw-body parsing + a generous rate limit, mounted
   // BEFORE express.json() below — signature verification needs the
   // exact bytes Meta signed, which express.json() would not preserve.
