@@ -95,6 +95,36 @@ export default function ConversationScreen() {
     };
   }, [id]);
 
+  // Scoped to this single open conversation (filter: conversation_id=eq.id)
+  // — never a global subscription across all messages — and torn down on
+  // unmount/navigation away so no channel lingers once the screen closes.
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`conversation-${id}-messages`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+        (payload) => {
+          const updated = payload.new as { id: string; direction: string; delivery_status: string | null };
+
+          if (updated.direction !== 'outbound') return;
+
+          setMessages((current) =>
+            current.map((item) =>
+              item.id === updated.id ? { ...item, delivery_status: updated.delivery_status } : item,
+            ),
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
   const handleSend = async () => {
     const content = draftText.trim();
     if (!content || isSending || !id) return;

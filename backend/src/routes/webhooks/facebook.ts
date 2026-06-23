@@ -4,8 +4,11 @@ import { verifyMetaSignature, verifyWebhookChallenge } from '../../services/meta
 import { recordWebhookEvent, markWebhookEventResolved } from '../../services/webhookEventService';
 import { resolveTenantForExternalAccount } from '../../services/connectionsService';
 import { findOrCreateConversation, recordInboundMessage } from '../../services/conversationService';
+import { notifyTenantNewMessage } from '../../services/pushService';
 import { logger } from '../../lib/logger';
 import { facebookWebhookPayloadSchema } from '../../validators/facebook.schema';
+
+const PUSH_PREVIEW_LENGTH = 50;
 
 export const facebookWebhookRouter = Router();
 
@@ -87,6 +90,10 @@ facebookWebhookRouter.post('/', async (req, res) => {
           externalMessageId: messaging.message.mid,
           content: messaging.message.text,
         });
+
+        const content = messaging.message.text;
+        const preview = content.length > PUSH_PREVIEW_LENGTH ? `${content.slice(0, PUSH_PREVIEW_LENGTH)}…` : content;
+        await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message Facebook', preview);
       }
     }
 

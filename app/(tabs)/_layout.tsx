@@ -1,10 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { registerForPushNotificationsAsync } from '../../lib/notifications';
 
 const ACTIVE_COLOR = '#6366F1';
 const INACTIVE_COLOR = '#94A3B8';
 
 export default function TabsLayout() {
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
+
   return (
     <Tabs
       screenOptions={{

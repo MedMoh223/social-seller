@@ -8,8 +8,11 @@ import {
   recordInboundMessage,
   updateOutboundDeliveryStatus,
 } from '../../services/conversationService';
+import { notifyTenantNewMessage } from '../../services/pushService';
 import { logger } from '../../lib/logger';
 import { whatsappWebhookPayloadSchema } from '../../validators/whatsapp.schema';
+
+const PUSH_PREVIEW_LENGTH = 50;
 
 export const whatsappWebhookRouter = Router();
 
@@ -84,14 +87,19 @@ whatsappWebhookRouter.post('/', async (req, res) => {
             socialConnectionId: resolved.socialConnectionId,
           });
 
+          const content = message.text?.body ?? `[${message.type}]`;
+
           await recordInboundMessage({
             tenantId: resolved.tenantId,
             conversationId,
             socialConnectionId: resolved.socialConnectionId,
             externalMessageId: message.id,
-            content: message.text?.body ?? `[${message.type}]`,
+            content,
             messageType: message.type === 'text' ? 'text' : 'other',
           });
+
+          const preview = content.length > PUSH_PREVIEW_LENGTH ? `${content.slice(0, PUSH_PREVIEW_LENGTH)}…` : content;
+          await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message WhatsApp', preview);
         }
 
         for (const status of change.value.statuses ?? []) {
