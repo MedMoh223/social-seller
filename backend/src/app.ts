@@ -7,6 +7,7 @@ import { rawBodyParser } from './middleware/rawBody';
 import { authRouter } from './routes/auth';
 import { connectionsRouter } from './routes/connections';
 import { messagesRouter } from './routes/messages';
+import { ordersRouter } from './routes/orders';
 import { facebookOAuthRouter } from './routes/oauth/facebook';
 import { tiktokOAuthRouter } from './routes/oauth/tiktok';
 import { whatsappOAuthRouter } from './routes/oauth/whatsapp';
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/auth', publicLimiter, authRouter);
   app.use('/connections', connectionsRouter);
   app.use('/conversations', messagesRouter);
+  app.use('/orders', ordersRouter);
   app.use('/oauth/facebook', facebookOAuthRouter);
   app.use('/oauth/whatsapp', whatsappOAuthRouter);
   app.use('/oauth/tiktok', tiktokOAuthRouter);

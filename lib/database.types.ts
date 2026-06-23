@@ -652,6 +652,26 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      transition_order_status: {
+        Args: {
+          p_order_id: string
+          p_tenant_id: string
+          p_new_status: string
+          p_user_id: string
+          p_cancelled_reason?: string | null
+        }
+        Returns: {
+          id: string;
+          tenant_id: string;
+          conversation_id: string | null;
+          agent_id: string | null;
+          customer_name: string | null;
+          total_amount: number;
+          status: string;
+          cancelled_reason: string | null;
+          created_at: string;
+        };
+      };
       create_initial_tenant: {
         Args: {
           p_name: string
