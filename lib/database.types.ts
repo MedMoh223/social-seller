@@ -101,24 +101,54 @@ export interface Database {
           id: string;
           tenant_id: string;
           platform: string;
-          access_token: string | null;
+          access_token_enc: string | null;
           status: string;
+          external_account_id: string | null;
+          waba_id: string | null;
+          display_name: string | null;
+          refresh_token_enc: string | null;
+          token_expires_at: string | null;
+          scopes: string[] | null;
+          metadata: Json;
+          connected_by: string | null;
+          last_webhook_at: string | null;
+          disconnected_at: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           tenant_id: string;
           platform: string;
-          access_token?: string | null;
+          access_token_enc?: string | null;
           status?: string;
+          external_account_id?: string | null;
+          waba_id?: string | null;
+          display_name?: string | null;
+          refresh_token_enc?: string | null;
+          token_expires_at?: string | null;
+          scopes?: string[] | null;
+          metadata?: Json;
+          connected_by?: string | null;
+          last_webhook_at?: string | null;
+          disconnected_at?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           tenant_id?: string;
           platform?: string;
-          access_token?: string | null;
+          access_token_enc?: string | null;
           status?: string;
+          external_account_id?: string | null;
+          waba_id?: string | null;
+          display_name?: string | null;
+          refresh_token_enc?: string | null;
+          token_expires_at?: string | null;
+          scopes?: string[] | null;
+          metadata?: Json;
+          connected_by?: string | null;
+          last_webhook_at?: string | null;
+          disconnected_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -127,6 +157,13 @@ export interface Database {
             columns: ['tenant_id'];
             isOneToOne: false;
             referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'social_connections_connected_by_fkey';
+            columns: ['connected_by'];
+            isOneToOne: false;
+            referencedRelation: 'users';
             referencedColumns: ['id'];
           },
         ];
@@ -140,6 +177,8 @@ export interface Database {
           customer_id: string | null;
           assigned_to: string | null;
           status: string;
+          external_thread_id: string | null;
+          social_connection_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -150,6 +189,8 @@ export interface Database {
           customer_id?: string | null;
           assigned_to?: string | null;
           status?: string;
+          external_thread_id?: string | null;
+          social_connection_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -160,6 +201,8 @@ export interface Database {
           customer_id?: string | null;
           assigned_to?: string | null;
           status?: string;
+          external_thread_id?: string | null;
+          social_connection_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -177,6 +220,13 @@ export interface Database {
             referencedRelation: 'users';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'conversations_social_connection_id_fkey';
+            columns: ['social_connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'social_connections';
+            referencedColumns: ['id'];
+          },
         ];
       };
       messages: {
@@ -186,6 +236,12 @@ export interface Database {
           tenant_id: string;
           direction: string;
           content: string;
+          external_message_id: string | null;
+          message_type: string;
+          attachment_url: string | null;
+          delivery_status: string | null;
+          social_connection_id: string | null;
+          error_detail: string | null;
           created_at: string;
         };
         Insert: {
@@ -194,6 +250,12 @@ export interface Database {
           tenant_id: string;
           direction: string;
           content: string;
+          external_message_id?: string | null;
+          message_type?: string;
+          attachment_url?: string | null;
+          delivery_status?: string | null;
+          social_connection_id?: string | null;
+          error_detail?: string | null;
           created_at?: string;
         };
         Update: {
@@ -202,6 +264,12 @@ export interface Database {
           tenant_id?: string;
           direction?: string;
           content?: string;
+          external_message_id?: string | null;
+          message_type?: string;
+          attachment_url?: string | null;
+          delivery_status?: string | null;
+          social_connection_id?: string | null;
+          error_detail?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -217,6 +285,13 @@ export interface Database {
             columns: ['tenant_id'];
             isOneToOne: false;
             referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'messages_social_connection_id_fkey';
+            columns: ['social_connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'social_connections';
             referencedColumns: ['id'];
           },
         ];
@@ -406,6 +481,114 @@ export interface Database {
           },
           {
             foreignKeyName: 'audit_log_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      webhook_events: {
+        Row: {
+          id: string;
+          platform: string;
+          external_event_id: string | null;
+          payload_hash: string;
+          tenant_id: string | null;
+          social_connection_id: string | null;
+          status: string;
+          error_detail: string | null;
+          raw_payload: Json;
+          received_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          platform: string;
+          external_event_id?: string | null;
+          payload_hash: string;
+          tenant_id?: string | null;
+          social_connection_id?: string | null;
+          status?: string;
+          error_detail?: string | null;
+          raw_payload: Json;
+          received_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          platform?: string;
+          external_event_id?: string | null;
+          payload_hash?: string;
+          tenant_id?: string | null;
+          social_connection_id?: string | null;
+          status?: string;
+          error_detail?: string | null;
+          raw_payload?: Json;
+          received_at?: string;
+          processed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'webhook_events_tenant_id_fkey';
+            columns: ['tenant_id'];
+            isOneToOne: false;
+            referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'webhook_events_social_connection_id_fkey';
+            columns: ['social_connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'social_connections';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      oauth_states: {
+        Row: {
+          id: string;
+          state: string;
+          tenant_id: string;
+          user_id: string;
+          platform: string;
+          redirect_scheme: string;
+          created_at: string;
+          expires_at: string;
+          consumed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          state: string;
+          tenant_id: string;
+          user_id: string;
+          platform: string;
+          redirect_scheme?: string;
+          created_at?: string;
+          expires_at?: string;
+          consumed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          state?: string;
+          tenant_id?: string;
+          user_id?: string;
+          platform?: string;
+          redirect_scheme?: string;
+          created_at?: string;
+          expires_at?: string;
+          consumed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'oauth_states_tenant_id_fkey';
+            columns: ['tenant_id'];
+            isOneToOne: false;
+            referencedRelation: 'tenants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'oauth_states_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'users';

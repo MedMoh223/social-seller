@@ -54,6 +54,13 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="channels"
+        options={{
+          title: 'Canaux',
+          tabBarIcon: ({ color, size }) => <Feather name="link-2" size={size} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
