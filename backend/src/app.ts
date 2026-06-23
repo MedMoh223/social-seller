@@ -23,10 +23,14 @@ export function createApp() {
     res.status(200).json({ status: 'ok' });
   });
 
-  // TikTok domain verification file
+  // TikTok domain verification files
   app.get('/tiktokBOBsOsmw9286ObJVbqEnky2uVsM59vBw.txt', (_req, res) => {
     res.setHeader('Content-Type', 'text/plain');
     res.send('tiktok-developers-site-verification=BOBsOsmw9286ObJVbqEnky2uVsM59vBw');
+  });
+  app.get('/tiktok4yECuhBiz6XKkTnxVZRrV3InZHmxDpr0.txt', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain');
+    res.send('tiktok-developers-site-verification=4yECuhBiz6XKkTnxVZRrV3InZHmxDpr0');
   });
 
   // Webhook routes: raw-body parsing + a generous rate limit, mounted
