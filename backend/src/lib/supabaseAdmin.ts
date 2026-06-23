@@ -10,4 +10,9 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE
     autoRefreshToken: false,
     persistSession: false,
   },
+  realtime: {
+    // Backend never uses realtime subscriptions — disable to prevent
+    // WebSocket connection attempts that could crash the process.
+    timeout: 0,
+  },
 });
