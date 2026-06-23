@@ -652,6 +652,26 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      adjust_product_stock: {
+        Args: {
+          p_product_id: string
+          p_tenant_id: string
+          p_delta: number
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: {
+          id: string;
+          tenant_id: string;
+          name: string;
+          description: string | null;
+          price: number;
+          stock_quantity: number;
+          alert_threshold: number;
+          deleted_at: string | null;
+          created_at: string;
+        };
+      };
       transition_order_status: {
         Args: {
           p_order_id: string
