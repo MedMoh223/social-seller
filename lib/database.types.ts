@@ -180,6 +180,7 @@ export interface Database {
           external_thread_id: string | null;
           social_connection_id: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -192,6 +193,7 @@ export interface Database {
           external_thread_id?: string | null;
           social_connection_id?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -204,6 +206,7 @@ export interface Database {
           external_thread_id?: string | null;
           social_connection_id?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -242,6 +245,7 @@ export interface Database {
           delivery_status: string | null;
           social_connection_id: string | null;
           error_detail: string | null;
+          is_read: boolean;
           created_at: string;
         };
         Insert: {
@@ -256,6 +260,7 @@ export interface Database {
           delivery_status?: string | null;
           social_connection_id?: string | null;
           error_detail?: string | null;
+          is_read?: boolean;
           created_at?: string;
         };
         Update: {
@@ -270,6 +275,7 @@ export interface Database {
           delivery_status?: string | null;
           social_connection_id?: string | null;
           error_detail?: string | null;
+          is_read?: boolean;
           created_at?: string;
         };
         Relationships: [
