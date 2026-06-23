@@ -652,6 +652,17 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      get_top_products: {
+        Args: {
+          p_tenant_id: string
+          p_limit?: number
+        }
+        Returns: {
+          product_id: string;
+          name: string;
+          total_sold: number;
+        }[];
+      };
       adjust_product_stock: {
         Args: {
           p_product_id: string
