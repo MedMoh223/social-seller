@@ -14,7 +14,22 @@ const CALLBACK_PATH = '/oauth/facebook/callback';
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
   const params = new URLSearchParams({ platform: 'facebook' });
   if (reason) params.set('reason', reason);
-  res.redirect(`socialseller://oauth-${status}?${params.toString()}`);
+  const deepLink = `socialseller://oauth-${status}?${params.toString()}`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Connexion ${status === 'success' ? 'réussie' : 'échouée'}</title>
+    <meta http-equiv="refresh" content="0;url=${deepLink}" />
+    <script>window.location.href = "${deepLink}";</script>
+  </head>
+  <body>
+    <p>${status === 'success' ? 'Connexion réussie. Retour à l\'application…' : 'Connexion échouée. Retour à l\'application…'}</p>
+    <a href="${deepLink}">Retourner à l'application</a>
+  </body>
+</html>`);
 }
 
 facebookOAuthRouter.get('/callback', async (req, res) => {

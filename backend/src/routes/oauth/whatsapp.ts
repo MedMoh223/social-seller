@@ -14,7 +14,28 @@ const CALLBACK_PATH = '/oauth/whatsapp/callback';
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
   const params = new URLSearchParams({ platform: 'whatsapp' });
   if (reason) params.set('reason', reason);
-  res.redirect(`socialseller://oauth-${status}?${params.toString()}`);
+  const deepLink = `socialseller://oauth-${status}?${params.toString()}`;
+
+  // A bare res.redirect() to a custom scheme is treated as a broken URL
+  // by most mobile browsers — they show a "page not found" error instead
+  // of handing the link back to the OS. Returning an HTML page that
+  // immediately self-redirects via window.location lets the browser
+  // execute the redirect in JavaScript, which correctly triggers the
+  // OS intent dispatch and lets expo-web-browser close the session.
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Connexion ${status === 'success' ? 'réussie' : 'échouée'}</title>
+    <meta http-equiv="refresh" content="0;url=${deepLink}" />
+    <script>window.location.href = "${deepLink}";</script>
+  </head>
+  <body>
+    <p>${status === 'success' ? 'Connexion réussie. Retour à l\'application…' : 'Connexion échouée. Retour à l\'application…'}</p>
+    <a href="${deepLink}">Retourner à l'application</a>
+  </body>
+</html>`);
 }
 
 whatsappOAuthRouter.get('/callback', async (req, res) => {
