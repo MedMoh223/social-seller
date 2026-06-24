@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env';
-import { WebhookSignatureError } from '../lib/httpErrors';
+import { WebhookSignatureError, NotImplementedError } from '../lib/httpErrors';
 
 const TIKTOK_AUTH_BASE = 'https://www.tiktok.com/v2/auth/authorize';
 const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
@@ -35,7 +35,7 @@ export function verifyTikTokSignature(rawBody: Buffer, signatureHeader: string |
 
 export function buildTikTokAuthorizationUrl(state: string, redirectUri: string): string {
   if (!env.TIKTOK_CLIENT_KEY) {
-    throw new Error('TIKTOK_CLIENT_KEY not configured');
+    throw new NotImplementedError('Canal TikTok non configuré sur ce serveur.');
   }
 
   const url = new URL(TIKTOK_AUTH_BASE);

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env } from '../config/env';
 import { requireAuth } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
-import { ValidationError, NotFoundError } from '../lib/httpErrors';
+import { ValidationError, NotFoundError, NotImplementedError } from '../lib/httpErrors';
 import { createOAuthState } from '../services/oauthStateService';
 import { listConnections, disconnectConnection } from '../services/connectionsService';
 import { buildFacebookAuthorizationUrl, buildWhatsAppAuthorizationUrl } from '../services/metaGraphClient';
@@ -34,6 +34,18 @@ connectionsRouter.post('/:platform/start', async (req, res, next) => {
   }
 
   const platform = parsedPlatform.data;
+
+  // Fail fast with a clear 501 if the channel isn't configured on this
+  // deployment, rather than letting the missing-env throw bubble up as
+  // an opaque internal_error.
+  if ((platform === 'whatsapp' || platform === 'facebook') && !env.META_APP_ID) {
+    next(new NotImplementedError('Canal Meta non configuré sur ce serveur.'));
+    return;
+  }
+  if (platform === 'tiktok' && !env.TIKTOK_CLIENT_KEY) {
+    next(new NotImplementedError('Canal TikTok non configuré sur ce serveur.'));
+    return;
+  }
 
   try {
     const state = await createOAuthState({ tenantId: req.user!.tenantId, userId: req.user!.id, platform });

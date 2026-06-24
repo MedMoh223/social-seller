@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
+import { AppError } from '../lib/httpErrors';
+import { logger } from '../lib/logger';
 
 export type Platform = 'whatsapp' | 'facebook' | 'tiktok';
 
@@ -18,7 +20,8 @@ export async function createOAuthState(params: {
   });
 
   if (error) {
-    throw error;
+    logger.error({ err: error, platform: params.platform }, 'oauth_states insert failed');
+    throw new AppError(500, 'internal_error', 'Impossible de créer la session OAuth.');
   }
 
   return state;

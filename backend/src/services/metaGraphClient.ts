@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env';
-import { WebhookSignatureError } from '../lib/httpErrors';
+import { WebhookSignatureError, NotImplementedError } from '../lib/httpErrors';
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 // Send API calls pinned to v19.0 per the task spec — kept separate from
@@ -39,7 +39,7 @@ export function verifyWebhookChallenge(verifyToken: string | undefined, expected
 
 export function buildFacebookAuthorizationUrl(state: string, redirectUri: string): string {
   if (!env.META_APP_ID) {
-    throw new Error('META_APP_ID not configured');
+    throw new NotImplementedError('Canal Meta non configuré sur ce serveur.');
   }
 
   const url = new URL(`${GRAPH_API_BASE}/dialog/oauth`);
@@ -60,7 +60,7 @@ export function buildFacebookAuthorizationUrl(state: string, redirectUri: string
 // relying on it in production — it has changed across Graph API versions.
 export function buildWhatsAppAuthorizationUrl(state: string, redirectUri: string): string {
   if (!env.META_APP_ID) {
-    throw new Error('META_APP_ID not configured');
+    throw new NotImplementedError('Canal Meta non configuré sur ce serveur.');
   }
 
   const url = new URL(`${GRAPH_API_BASE}/dialog/oauth`);
