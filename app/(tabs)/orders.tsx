@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -56,17 +56,24 @@ export default function OrdersScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase
-      .from('orders')
-      .select('id, customer_name, total_amount, status, created_at')
-      .order('created_at', { ascending: false });
-
-    setOrders(data ?? []);
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!apiUrl || !session) return;
+    const res = await fetch(`${apiUrl}/orders`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (res.ok) {
+      const body = await res.json();
+      setOrders(body.orders ?? []);
+    }
   }, []);
 
-  useEffect(() => {
-    fetchOrders().finally(() => setIsLoading(false));
-  }, [fetchOrders]);
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchOrders().finally(() => setIsLoading(false));
+    }, [fetchOrders]),
+  );
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -91,7 +98,14 @@ export default function OrdersScreen() {
       data={orders}
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
-      ListHeaderComponent={<Text style={styles.title}>Commandes</Text>}
+      ListHeaderComponent={
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Commandes</Text>
+          <Pressable style={styles.addButton} onPress={() => router.push('/order/new')}>
+            <Feather name="plus" size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      }
       ListEmptyComponent={
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
@@ -128,7 +142,9 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   listContent: { flexGrow: 1, backgroundColor: '#F8FAFC', padding: 16 },
-  title: { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+  addButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#6366F1', alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingTop: 64, paddingHorizontal: 32 },
   emptyIcon: {
     width: 64,

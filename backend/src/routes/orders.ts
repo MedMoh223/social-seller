@@ -72,6 +72,64 @@ ordersRouter.get('/:id', async (req, res, next) => {
   }
 });
 
+const createOrderSchema = z.object({
+  customerName: z.string().trim().min(1).max(200),
+  conversationId: z.string().uuid().optional().nullable(),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.number().int().min(1),
+    unitPrice: z.number().nonnegative(),
+  })).min(1, 'Au moins un article est requis.'),
+});
+
+ordersRouter.post('/', async (req, res, next) => {
+  const parsed = createOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    next(new ValidationError(parsed.error.issues[0]?.message ?? 'Requête invalide.'));
+    return;
+  }
+
+  const { customerName, conversationId, items } = parsed.data;
+  const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+  try {
+    // Créer la commande
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .insert({
+        tenant_id: req.user!.tenantId,
+        agent_id: req.user!.id,
+        customer_name: customerName,
+        conversation_id: conversationId ?? null,
+        total_amount: totalAmount,
+        status: 'new',
+      })
+      .select('id, customer_name, total_amount, status, created_at')
+      .single();
+
+    if (orderError) throw orderError;
+
+    // Insérer les articles
+    const { error: itemsError } = await supabaseAdmin
+      .from('order_items')
+      .insert(
+        items.map((item) => ({
+          order_id: order.id,
+          product_id: item.productId,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+        })),
+      );
+
+    if (itemsError) throw itemsError;
+
+    res.status(201).json({ order });
+  } catch (err) {
+    logger.error({ err }, 'failed to create order');
+    next(err);
+  }
+});
+
 const ORDER_STATUSES = ['new', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'] as const;
 
 const patchOrderSchema = z
