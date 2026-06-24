@@ -314,6 +314,22 @@ export default function ConversationScreen() {
             </Pressable>
           )
         )}
+        {conversation && (
+          <Pressable
+            style={styles.saveClientBtn}
+            onPress={() =>
+              router.push({
+                pathname: '/order/new',
+                params: {
+                  conversationId: id,
+                  customerName: conversation.customer_name ?? conversation.customer_id ?? '',
+                },
+              })
+            }
+          >
+            <Feather name="shopping-cart" size={18} color="#6366F1" />
+          </Pressable>
+        )}
       </View>
 
       {/* Modal : enregistrer comme client */}
