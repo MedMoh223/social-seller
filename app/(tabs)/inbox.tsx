@@ -146,6 +146,9 @@ export default function InboxScreen() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
         fetchConversations();
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => {
+        fetchConversations();
+      })
       .subscribe();
 
     return () => {
