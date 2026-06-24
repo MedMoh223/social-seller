@@ -3,8 +3,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -55,6 +57,9 @@ export default function ConversationScreen() {
   const [draftText, setDraftText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveForm, setSaveForm] = useState({ name: '', phone: '' });
+  const [isSavingClient, setIsSavingClient] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -206,6 +211,48 @@ export default function ConversationScreen() {
     }
   };
 
+  const handleOpenSaveModal = () => {
+    setSaveForm({
+      name: conversation?.customer_name ?? '',
+      phone: conversation?.customer_id ?? '',
+    });
+    setShowSaveModal(true);
+  };
+
+  const handleSaveClient = async () => {
+    if (!saveForm.name.trim()) return;
+    setIsSavingClient(true);
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!apiUrl || !session) throw new Error('not_ready');
+
+      const res = await fetch(`${apiUrl}/customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          name: saveForm.name.trim(),
+          phone: saveForm.phone.trim() || null,
+          source: conversation?.platform ?? 'manual',
+          external_id: conversation?.customer_id ?? null,
+        }),
+      });
+
+      setShowSaveModal(false);
+      if (res.ok) {
+        Alert.alert('Client enregistré', `${saveForm.name.trim()} a été ajouté à vos clients.`);
+      } else {
+        const body = await res.json();
+        const msg = body?.error?.message ?? 'Erreur serveur';
+        Alert.alert('Erreur', msg);
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible d\'enregistrer le client.');
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
+
   const platformLabel = conversation ? PLATFORM_LABELS[conversation.platform] ?? conversation.platform : '';
   const contactName = conversation?.customer_name || conversation?.customer_id || 'Client';
   const canSend = draftText.trim().length > 0 && !isSending;
@@ -225,11 +272,58 @@ export default function ConversationScreen() {
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Feather name="arrow-left" size={20} color="#0F172A" />
         </Pressable>
-        <View>
+        <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{contactName}</Text>
           {platformLabel ? <Text style={styles.headerSubtitle}>{platformLabel}</Text> : null}
         </View>
+        {conversation && (
+          <Pressable style={styles.saveClientBtn} onPress={handleOpenSaveModal}>
+            <Feather name="user-plus" size={18} color="#6366F1" />
+          </Pressable>
+        )}
       </View>
+
+      {/* Modal : enregistrer comme client */}
+      <Modal visible={showSaveModal} animationType="slide" transparent onRequestClose={() => setShowSaveModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Enregistrer comme client</Text>
+              <Pressable onPress={() => setShowSaveModal(false)}>
+                <Feather name="x" size={22} color="#64748B" />
+              </Pressable>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.label}>Nom</Text>
+              <TextInput
+                style={styles.input}
+                value={saveForm.name}
+                onChangeText={(v) => setSaveForm((f) => ({ ...f, name: v }))}
+                placeholder="Nom complet"
+                placeholderTextColor="#94A3B8"
+              />
+              <Text style={styles.label}>Téléphone</Text>
+              <TextInput
+                style={styles.input}
+                value={saveForm.phone}
+                onChangeText={(v) => setSaveForm((f) => ({ ...f, phone: v }))}
+                placeholder="+223 XX XX XX XX"
+                placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
+              />
+            </View>
+            <Pressable
+              style={[styles.saveButton, (!saveForm.name.trim() || isSavingClient) && styles.saveButtonDisabled]}
+              onPress={handleSaveClient}
+              disabled={!saveForm.name.trim() || isSavingClient}
+            >
+              {isSavingClient
+                ? <ActivityIndicator color="#FFFFFF" size="small" />
+                : <Text style={styles.saveButtonText}>Enregistrer</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {isLoading ? (
         <View style={styles.centered}>
@@ -316,8 +410,20 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
   },
   backLink: { marginRight: 12 },
+  headerInfo: { flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   headerSubtitle: { fontSize: 12, color: '#64748B', marginTop: 1 },
+  saveClientBtn: { padding: 8 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: '#0F172A' },
+  modalBody: { paddingHorizontal: 20, paddingTop: 16 },
+  label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A' },
+  saveButton: { marginHorizontal: 20, marginTop: 24, backgroundColor: '#6366F1', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  saveButtonDisabled: { backgroundColor: '#A5B4FC' },
+  saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyText: { fontSize: 14, color: '#64748B' },
   listContent: { flexGrow: 1, padding: 16 },

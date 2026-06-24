@@ -59,13 +59,18 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
     const tokenResponse = await exchangeCodeForToken({ code, redirectUri });
 
-    // Discover the WABA directly via /me/whatsapp_business_accounts —
-    // this works with the whatsapp_business_management scope we request.
-    // The previous approach (/me/businesses → /owned_whatsapp_business_accounts)
-    // required the separate business_management scope which we don't ask for,
-    // causing a 400 on /me/businesses.
+    // Discover the WABA via the user's Business Manager.
+    // Requires business_management scope (now included in the authorization URL).
+    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', tokenResponse.access_token);
+    const business = businesses.data[0];
+
+    if (!business) {
+      redirectToApp(res, 'error', 'no_business');
+      return;
+    }
+
     const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
-      '/me/whatsapp_business_accounts',
+      `/${business.id}/owned_whatsapp_business_accounts`,
       tokenResponse.access_token,
     );
     const waba = wabas.data[0];

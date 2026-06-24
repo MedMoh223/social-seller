@@ -5,12 +5,17 @@ import { encryptToken } from '../lib/tokenCrypto';
 export interface TestTenant {
   tenantId: string;
   userId: string;
-  email: string;
 }
 
-// Creates a fresh tenant + merchant user (a real auth.users row via the
-// Admin API, plus the matching public.users row) for one test. Every
-// test gets its own tenant — cross-tenant tests just create two.
+// Creates a fresh tenant + merchant user for one test. The tenants row
+// is inserted with owner_id set to a real auth.users id — the
+// on_tenant_created trigger (003_tenant_profile_setup.sql,
+// handle_new_tenant()) then provisions the matching public.users row
+// itself from new.owner_id. Inserting into public.users manually here
+// would either race the trigger or hit a duplicate-key conflict, since
+// the trigger already does it; if owner_id were left null instead, the
+// trigger's insert into public.users (id, ...) values (new.owner_id, ...)
+// fails with a not-null violation on id — that was the original bug.
 export async function createTestTenant(): Promise<TestTenant> {
   const email = `test-${randomUUID()}@example.com`;
 
@@ -28,7 +33,7 @@ export async function createTestTenant(): Promise<TestTenant> {
 
   const { data: tenant, error: tenantError } = await supabaseAdmin
     .from('tenants')
-    .insert({ name: `Test Tenant ${randomUUID()}` })
+    .insert({ name: `Test Tenant ${randomUUID()}`, owner_id: userId })
     .select('id')
     .single();
 
@@ -36,18 +41,7 @@ export async function createTestTenant(): Promise<TestTenant> {
     throw new Error(`failed to create test tenant: ${tenantError?.message}`);
   }
 
-  const { error: userRowError } = await supabaseAdmin.from('users').insert({
-    id: userId,
-    tenant_id: tenant.id,
-    role: 'merchant',
-    full_name: 'Test Merchant',
-  });
-
-  if (userRowError) {
-    throw new Error(`failed to create test users row: ${userRowError.message}`);
-  }
-
-  return { tenantId: tenant.id, userId, email };
+  return { tenantId: tenant.id, userId };
 }
 
 // Deletion order respects FK constraints (no ON DELETE CASCADE except
@@ -68,6 +62,11 @@ export async function deleteTestTenant(tenant: TestTenant): Promise<void> {
   await supabaseAdmin.from('products').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('audit_log').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('push_tokens').delete().eq('tenant_id', tenant.tenantId);
+
+  // tenants.owner_id also references auth.users(id) (no cascade) — break
+  // that link before deleting the auth user, otherwise the delete below
+  // is rejected by the same FK it would otherwise need to cascade through.
+  await supabaseAdmin.from('tenants').update({ owner_id: null }).eq('id', tenant.tenantId);
 
   // Cascades the public.users row (users.id references auth.users(id)
   // on delete cascade) — must happen after the deletes above, since

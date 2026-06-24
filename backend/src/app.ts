@@ -10,6 +10,7 @@ import { messagesRouter } from './routes/messages';
 import { ordersRouter } from './routes/orders';
 import { productsRouter } from './routes/products';
 import { statsRouter } from './routes/stats';
+import { customersRouter } from './routes/customers';
 import { facebookOAuthRouter } from './routes/oauth/facebook';
 import { tiktokOAuthRouter } from './routes/oauth/tiktok';
 import { whatsappOAuthRouter } from './routes/oauth/whatsapp';
@@ -57,6 +58,7 @@ export function createApp() {
   app.use('/orders', ordersRouter);
   app.use('/products', productsRouter);
   app.use('/stats', statsRouter);
+  app.use('/customers', customersRouter);
   app.use('/oauth/facebook', facebookOAuthRouter);
   app.use('/oauth/whatsapp', whatsappOAuthRouter);
   app.use('/oauth/tiktok', tiktokOAuthRouter);

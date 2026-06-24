@@ -73,7 +73,8 @@ export function buildWhatsAppAuthorizationUrl(state: string, redirectUri: string
   url.searchParams.set('client_id', env.META_APP_ID);
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('state', state);
-  url.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging');
+  // business_management is required for GET /me/businesses in the callback.
+  url.searchParams.set('scope', 'business_management,whatsapp_business_management,whatsapp_business_messaging');
   url.searchParams.set('response_type', 'code');
 
   return url.toString();
