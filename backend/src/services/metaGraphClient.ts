@@ -3,6 +3,11 @@ import { env } from '../config/env';
 import { WebhookSignatureError, NotImplementedError } from '../lib/httpErrors';
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
+// OAuth dialog URLs must use www.facebook.com, not graph.facebook.com.
+// graph.facebook.com is for API calls only — using it for the OAuth
+// dialog returns a GraphMethodException "Object with ID 'dialog' does
+// not exist" (error code 100, subcode 33).
+const FACEBOOK_OAUTH_BASE = 'https://www.facebook.com/v21.0';
 // Send API calls pinned to v19.0 per the task spec — kept separate from
 // GRAPH_API_BASE (used for OAuth/discovery) rather than bumping every
 // Graph call to the same version, since only these two endpoints were
@@ -42,7 +47,7 @@ export function buildFacebookAuthorizationUrl(state: string, redirectUri: string
     throw new NotImplementedError('Canal Meta non configuré sur ce serveur.');
   }
 
-  const url = new URL(`${GRAPH_API_BASE}/dialog/oauth`);
+  const url = new URL(`${FACEBOOK_OAUTH_BASE}/dialog/oauth`);
   url.searchParams.set('client_id', env.META_APP_ID);
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('state', state);
@@ -63,7 +68,7 @@ export function buildWhatsAppAuthorizationUrl(state: string, redirectUri: string
     throw new NotImplementedError('Canal Meta non configuré sur ce serveur.');
   }
 
-  const url = new URL(`${GRAPH_API_BASE}/dialog/oauth`);
+  const url = new URL(`${FACEBOOK_OAUTH_BASE}/dialog/oauth`);
   url.searchParams.set('client_id', env.META_APP_ID);
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('state', state);
