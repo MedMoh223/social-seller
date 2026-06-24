@@ -105,6 +105,24 @@ export default function ConversationScreen() {
       .channel(`conversation-${id}-messages`)
       .on(
         'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+        (payload) => {
+          const newMsg = payload.new as MessageRow;
+
+          // Inbound message arrives while conversation is open — append and
+          // immediately mark as read so the inbox badge doesn't increment.
+          if (newMsg.direction === 'inbound') {
+            setMessages((current) => [...current, newMsg]);
+            supabase
+              .from('messages')
+              .update({ is_read: true })
+              .eq('id', newMsg.id)
+              .then(() => {});
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
         (payload) => {
           const updated = payload.new as { id: string; direction: string; delivery_status: string | null };
