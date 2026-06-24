@@ -68,6 +68,9 @@ export default function ConversationScreen() {
     let isMounted = true;
 
     async function load() {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      const { data: { session } } = await supabase.auth.getSession();
+
       const [{ data: conversationData }, { data: messageData }] = await Promise.all([
         supabase.from('conversations').select('platform, customer_name, customer_id').eq('id', id).single(),
         supabase
@@ -83,21 +86,19 @@ export default function ConversationScreen() {
       setMessages(messageData ?? []);
       setIsLoading(false);
 
-      // Chercher si un customer est déjà lié à ce contact
-      if (conversationData?.customer_id) {
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-        const { data: { session } } = await supabase.auth.getSession();
-        if (apiUrl && session) {
-          const res = await fetch(
-            `${apiUrl}/customers?external_id=${encodeURIComponent(conversationData.customer_id)}`,
-            { headers: { Authorization: `Bearer ${session.access_token}` } },
-          );
-          if (res.ok) {
-            const body = await res.json();
-            const found = body.customers?.[0] ?? null;
-            if (isMounted) setLinkedCustomer(found ? { id: found.id, name: found.name } : null);
-          }
-        }
+      // Lookup customer en parallèle du rendu — lancé sans await pour ne pas bloquer l'affichage
+      if (conversationData?.customer_id && apiUrl && session) {
+        fetch(
+          `${apiUrl}/customers?external_id=${encodeURIComponent(conversationData.customer_id)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+        )
+          .then((res) => res.ok ? res.json() : null)
+          .then((body) => {
+            if (!isMounted) return;
+            const found = body?.customers?.[0] ?? null;
+            setLinkedCustomer(found ? { id: found.id, name: found.name } : null);
+          })
+          .catch(() => {});
       }
 
       // Best-effort: clear the unread badge for this thread now that the
@@ -444,7 +445,7 @@ const styles = StyleSheet.create({
   backLink: { marginRight: 12 },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  headerTitleLink: { color: '#6366F1', textDecorationLine: 'underline' },
+  headerTitleLink: { color: '#6366F1' },
   headerSubtitle: { fontSize: 12, color: '#64748B', marginTop: 1 },
   saveClientBtn: { padding: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
