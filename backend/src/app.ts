@@ -20,6 +20,11 @@ import { whatsappWebhookRouter } from './routes/webhooks/whatsapp';
 export function createApp() {
   const app = express();
 
+  // Railway (and most PaaS) sit behind a reverse proxy that adds
+  // X-Forwarded-For. Without this, express-rate-limit throws
+  // ERR_ERL_UNEXPECTED_X_FORWARDED_FOR and rate limiting breaks.
+  app.set('trust proxy', 1);
+
   app.use(helmet());
   app.use(corsMiddleware);
 
