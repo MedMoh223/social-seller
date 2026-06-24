@@ -138,6 +138,19 @@ export default function InboxScreen() {
 
   useEffect(() => {
     fetchConversations().finally(() => setIsLoading(false));
+
+    // Realtime: re-fetch whenever a new message arrives so the inbox
+    // updates without requiring an app restart or manual pull-to-refresh.
+    const channel = supabase
+      .channel('inbox-messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        fetchConversations();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchConversations]);
 
   const handleRefresh = async () => {
