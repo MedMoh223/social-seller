@@ -1,5 +1,4 @@
 import 'react-native-url-polyfill/auto';
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
@@ -38,19 +37,11 @@ async function removeItemChunked(key: string): Promise<void> {
   }
 }
 
+// SecureStore uniquement — pas de fallback localStorage (jamais sur mobile natif)
 const storage = {
-  getItem: (key: string) =>
-    Platform.OS === 'web'
-      ? Promise.resolve(localStorage.getItem(key))
-      : getItemChunked(key),
-  setItem: (key: string, value: string) =>
-    Platform.OS === 'web'
-      ? Promise.resolve(localStorage.setItem(key, value))
-      : setItemChunked(key, value),
-  removeItem: (key: string) =>
-    Platform.OS === 'web'
-      ? Promise.resolve(localStorage.removeItem(key))
-      : removeItemChunked(key),
+  getItem:    (key: string) => getItemChunked(key),
+  setItem:    (key: string, value: string) => setItemChunked(key, value),
+  removeItem: (key: string) => removeItemChunked(key),
 };
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;

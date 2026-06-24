@@ -170,7 +170,8 @@ export default function ActivationScreen() {
           style={styles.skipButton}
           onPress={() => router.push('/(auth)/profile-setup')}
         >
-          <Text style={styles.skipButtonText}>Continuer sans WhatsApp →</Text>
+          <Text style={styles.skipButtonText}>Configurer WhatsApp plus tard →</Text>
+          <Text style={styles.skipButtonHint}>Vous pourrez le connecter depuis l'onglet Canaux</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -281,6 +282,7 @@ const styles = StyleSheet.create({
   resendRow: { alignItems: 'center', marginTop: 20 },
   resendText: { fontSize: 13, color: '#64748B' },
   resendLink: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
-  skipButton: { alignSelf: 'center', marginTop: 24 },
+  skipButton: { alignSelf: 'center', marginTop: 24, alignItems: 'center' },
   skipButtonText: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
+  skipButtonHint: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
 });
