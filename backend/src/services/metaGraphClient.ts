@@ -132,7 +132,8 @@ export async function graphGet<T>(path: string, accessToken: string): Promise<T>
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Graph API GET ${path} failed: ${response.status}`);
+    const body = await response.text().catch(() => '');
+    throw new Error(`Graph API GET ${path} failed: ${response.status} — ${body}`);
   }
 
   return (await response.json()) as T;
