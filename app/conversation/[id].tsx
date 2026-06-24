@@ -60,6 +60,7 @@ export default function ConversationScreen() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveForm, setSaveForm] = useState({ name: '', phone: '' });
   const [isSavingClient, setIsSavingClient] = useState(false);
+  const [linkedCustomer, setLinkedCustomer] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -81,6 +82,23 @@ export default function ConversationScreen() {
       setConversation(conversationData ?? null);
       setMessages(messageData ?? []);
       setIsLoading(false);
+
+      // Chercher si un customer est déjà lié à ce contact
+      if (conversationData?.customer_id) {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (apiUrl && session) {
+          const res = await fetch(
+            `${apiUrl}/customers?external_id=${encodeURIComponent(conversationData.customer_id)}`,
+            { headers: { Authorization: `Bearer ${session.access_token}` } },
+          );
+          if (res.ok) {
+            const body = await res.json();
+            const found = body.customers?.[0] ?? null;
+            if (isMounted) setLinkedCustomer(found ? { id: found.id, name: found.name } : null);
+          }
+        }
+      }
 
       // Best-effort: clear the unread badge for this thread now that the
       // merchant has viewed it. Not awaited by the render path above —
@@ -240,6 +258,8 @@ export default function ConversationScreen() {
 
       setShowSaveModal(false);
       if (res.ok) {
+        const body = await res.json();
+        setLinkedCustomer({ id: body.customer.id, name: body.customer.name });
         Alert.alert('Client enregistré', `${saveForm.name.trim()} a été ajouté à vos clients.`);
       } else {
         const body = await res.json();
@@ -273,13 +293,25 @@ export default function ConversationScreen() {
           <Feather name="arrow-left" size={20} color="#0F172A" />
         </Pressable>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{contactName}</Text>
+          {linkedCustomer ? (
+            <Pressable onPress={() => router.push(`/customer/${linkedCustomer.id}`)}>
+              <Text style={[styles.headerTitle, styles.headerTitleLink]}>{contactName}</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.headerTitle}>{contactName}</Text>
+          )}
           {platformLabel ? <Text style={styles.headerSubtitle}>{platformLabel}</Text> : null}
         </View>
         {conversation && (
-          <Pressable style={styles.saveClientBtn} onPress={handleOpenSaveModal}>
-            <Feather name="user-plus" size={18} color="#6366F1" />
-          </Pressable>
+          linkedCustomer ? (
+            <Pressable style={styles.saveClientBtn} onPress={() => router.push(`/customer/${linkedCustomer.id}`)}>
+              <Feather name="user-check" size={18} color="#10B981" />
+            </Pressable>
+          ) : (
+            <Pressable style={styles.saveClientBtn} onPress={handleOpenSaveModal}>
+              <Feather name="user-plus" size={18} color="#6366F1" />
+            </Pressable>
+          )
         )}
       </View>
 
@@ -412,6 +444,7 @@ const styles = StyleSheet.create({
   backLink: { marginRight: 12 },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  headerTitleLink: { color: '#6366F1', textDecorationLine: 'underline' },
   headerSubtitle: { fontSize: 12, color: '#64748B', marginTop: 1 },
   saveClientBtn: { padding: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

@@ -20,9 +20,11 @@ const createSchema = z.object({
 const updateSchema = createSchema.partial();
 
 // GET /customers — liste paginée (50 par page, tri updated_at desc)
+// Supports ?q=search et ?external_id=xxx (lookup exact par external_id)
 customersRouter.get('/', async (req, res, next) => {
   try {
-    const search = typeof req.query.q === 'string' ? req.query.q.trim() : null;
+    const search     = typeof req.query.q           === 'string' ? req.query.q.trim()           : null;
+    const externalId = typeof req.query.external_id === 'string' ? req.query.external_id.trim() : null;
 
     let query = supabaseAdmin
       .from('customers')
@@ -32,7 +34,9 @@ customersRouter.get('/', async (req, res, next) => {
       .order('updated_at', { ascending: false })
       .limit(50);
 
-    if (search) {
+    if (externalId) {
+      query = query.eq('external_id', externalId);
+    } else if (search) {
       query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`);
     }
 
