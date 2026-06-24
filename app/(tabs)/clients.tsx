@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -62,9 +63,12 @@ export default function ClientsScreen() {
     setCustomers(body.customers ?? []);
   }, []);
 
-  useEffect(() => {
-    fetchCustomers().finally(() => setIsLoading(false));
-  }, [fetchCustomers]);
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchCustomers().finally(() => setIsLoading(false));
+    }, [fetchCustomers]),
+  );
 
   const handleSearch = useCallback((text: string) => {
     setSearchQuery(text);
