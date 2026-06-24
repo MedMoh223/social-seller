@@ -79,12 +79,25 @@ whatsappWebhookRouter.post('/', async (req, res) => {
 
         lastResolved = resolved;
 
+        // Build a quick lookup map: wa_id → profile name from the
+        // contacts array Meta includes alongside each message batch.
+        const contactNameByPhone = new Map<string, string>();
+        for (const contact of change.value.contacts ?? []) {
+          if (contact.profile?.name) {
+            contactNameByPhone.set(contact.wa_id, contact.profile.name);
+          }
+        }
+
         for (const message of change.value.messages ?? []) {
+          const customerName = contactNameByPhone.get(message.from) ?? null;
+
           const conversationId = await findOrCreateConversation({
             tenantId: resolved.tenantId,
             platform: 'whatsapp',
             externalThreadId: message.from,
             socialConnectionId: resolved.socialConnectionId,
+            customerName,
+            customerId: message.from,
           });
 
           const content = message.text?.body ?? `[${message.type}]`;

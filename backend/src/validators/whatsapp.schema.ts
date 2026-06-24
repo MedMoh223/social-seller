@@ -13,8 +13,14 @@ const messageSchema = z.object({
   text: z.object({ body: z.string() }).optional(),
 });
 
+const contactSchema = z.object({
+  wa_id: z.string(),
+  profile: z.object({ name: z.string().optional() }).optional(),
+});
+
 const changeValueSchema = z.object({
   metadata: z.object({ phone_number_id: z.string() }),
+  contacts: z.array(contactSchema).optional(),
   messages: z.array(messageSchema).optional(),
   statuses: z.array(statusSchema).optional(),
 });
