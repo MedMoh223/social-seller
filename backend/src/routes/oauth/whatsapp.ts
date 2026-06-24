@@ -59,24 +59,13 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
     const tokenResponse = await exchangeCodeForToken({ code, redirectUri });
 
-    // Discover the WABA + phone number granted during Embedded Signup.
-    // Meta's Embedded Signup normally surfaces these via a postMessage
-    // event from their JS SDK rather than purely from this server-side
-    // redirect — if that event isn't separately forwarded to the
-    // backend, this Graph API discovery is the fallback path. VERIFY
-    // these endpoints against Meta's current Embedded Signup docs
-    // before relying on this in production; the exact shape has changed
-    // across Graph API versions.
-    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', tokenResponse.access_token);
-    const business = businesses.data[0];
-
-    if (!business) {
-      redirectToApp(res, 'error', 'no_business');
-      return;
-    }
-
+    // Discover the WABA directly via /me/whatsapp_business_accounts —
+    // this works with the whatsapp_business_management scope we request.
+    // The previous approach (/me/businesses → /owned_whatsapp_business_accounts)
+    // required the separate business_management scope which we don't ask for,
+    // causing a 400 on /me/businesses.
     const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
-      `/${business.id}/owned_whatsapp_business_accounts`,
+      '/me/whatsapp_business_accounts',
       tokenResponse.access_token,
     );
     const waba = wabas.data[0];
