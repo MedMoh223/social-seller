@@ -57,12 +57,13 @@ export function buildFacebookAuthorizationUrl(state: string, redirectUri: string
   return url.toString();
 }
 
-// Embedded Signup for WhatsApp Cloud API: structurally the same OAuth
-// dialog as Facebook's, but with WhatsApp-specific scopes plus an
-// `extras.feature=whatsapp_embedded_signup` that launches the embedded
-// signup experience instead of a plain permission screen. VERIFY this
-// `extras` shape against Meta's current Embedded Signup docs before
-// relying on it in production — it has changed across Graph API versions.
+// Standard OAuth for WhatsApp Cloud API — no Embedded Signup extras.
+// The Embedded Signup flow (extras.feature=whatsapp_embedded_signup) is
+// designed to onboard merchants who don't yet have a WABA; using it
+// against an account that already has a WABA causes Meta to show
+// "Cette page n'existe pas". Use standard OAuth instead: after the
+// merchant grants permissions the callback discovers the existing WABA
+// via /me/businesses → /owned_whatsapp_business_accounts.
 export function buildWhatsAppAuthorizationUrl(state: string, redirectUri: string): string {
   if (!env.META_APP_ID) {
     throw new NotImplementedError('Canal Meta non configuré sur ce serveur.');
@@ -74,7 +75,6 @@ export function buildWhatsAppAuthorizationUrl(state: string, redirectUri: string
   url.searchParams.set('state', state);
   url.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging');
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('extras', JSON.stringify({ feature: 'whatsapp_embedded_signup', sessionInfoVersion: '3' }));
 
   return url.toString();
 }
