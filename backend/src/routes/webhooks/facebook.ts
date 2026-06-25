@@ -3,7 +3,7 @@ import { env } from '../../config/env';
 import { verifyMetaSignature, verifyWebhookChallenge, graphGet } from '../../services/metaGraphClient';
 import { recordWebhookEvent, markWebhookEventResolved } from '../../services/webhookEventService';
 import { resolveTenantForExternalAccount } from '../../services/connectionsService';
-import { findOrCreateConversation, recordInboundMessage } from '../../services/conversationService';
+import { findOrCreateConversation, recordInboundMessage, updateOutboundDeliveryStatus } from '../../services/conversationService';
 import { notifyTenantNewMessage } from '../../services/pushService';
 import { logger } from '../../lib/logger';
 import { facebookWebhookPayloadSchema } from '../../validators/facebook.schema';
@@ -108,11 +108,35 @@ facebookWebhookRouter.post('/', async (req, res) => {
       const senderNameCache = new Map<string, string | null>();
 
       for (const messaging of entry.messaging ?? []) {
-        if (!messaging.message?.text) {
-          continue; // postbacks/reads/typing indicators — out of scope
+        const senderId = messaging.sender.id;
+
+        // Delivery receipt — individual message IDs delivered to the user.
+        if (messaging.delivery) {
+          for (const mid of messaging.delivery.mids ?? []) {
+            await updateOutboundDeliveryStatus(mid, 'delivered', null, resolved.tenantId);
+          }
+          // No further processing needed for this event.
+          continue;
         }
 
-        const senderId = messaging.sender.id;
+        // Read receipt — watermark means all outbound messages sent before
+        // that timestamp have been read by the user. We update by conversation
+        // (sender = externalThreadId) so we only touch this tenant's rows.
+        if (messaging.read) {
+          const watermarkDate = new Date(messaging.read.watermark).toISOString();
+          await supabaseAdmin
+            .from('messages')
+            .update({ delivery_status: 'read' })
+            .eq('direction', 'outbound')
+            .eq('tenant_id', resolved.tenantId)
+            .lte('created_at', watermarkDate)
+            .in('delivery_status', ['sent', 'delivered']);
+          continue;
+        }
+
+        if (!messaging.message?.text) {
+          continue; // postbacks/typing indicators — out of scope
+        }
 
         // Fetch sender name (best-effort, cached per batch)
         if (pageToken && !senderNameCache.has(senderId)) {

@@ -105,13 +105,15 @@ export async function recordInboundMessage(params: RecordInboundMessageParams): 
 export async function updateOutboundDeliveryStatus(
   externalMessageId: string,
   status: 'sent' | 'delivered' | 'read' | 'failed',
-  errorDetail?: string | null,
+  errorDetail: string | null,
+  tenantId: string,
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from('messages')
     .update({ delivery_status: status, error_detail: errorDetail ?? null })
     .eq('external_message_id', externalMessageId)
-    .eq('direction', 'outbound');
+    .eq('direction', 'outbound')
+    .eq('tenant_id', tenantId);
 
   if (error) {
     logger.error({ err: error, externalMessageId }, 'failed to update delivery status');

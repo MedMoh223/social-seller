@@ -116,7 +116,7 @@ whatsappWebhookRouter.post('/', async (req, res) => {
         }
 
         for (const status of change.value.statuses ?? []) {
-          await updateOutboundDeliveryStatus(status.id, status.status, status.errors?.[0]?.title ?? null);
+          await updateOutboundDeliveryStatus(status.id, status.status, status.errors?.[0]?.title ?? null, resolved.tenantId);
         }
       }
     }
