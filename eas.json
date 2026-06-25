@@ -10,19 +10,25 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bdltohywmogrjypydbug.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_SJq4pbltf4f8vR6vPKWUKQ_aRS1BnqM"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bdltohywmogrjypydbug.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_SJq4pbltf4f8vR6vPKWUKQ_aRS1BnqM"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://social-seller-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bdltohywmogrjypydbug.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_SJq4pbltf4f8vR6vPKWUKQ_aRS1BnqM"
       }
     }
   },
