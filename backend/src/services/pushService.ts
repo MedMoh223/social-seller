@@ -50,14 +50,26 @@ export async function sendPushNotification(
   }
 }
 
-export async function notifyTenantNewMessage(tenantId: string, title: string, body: string): Promise<void> {
-  const { data: tokens, error } = await supabaseAdmin.from('push_tokens').select('token').eq('tenant_id', tenantId);
+export async function notifyTenantNewMessage(
+  tenantId: string,
+  title: string,
+  body: string,
+  conversationId?: string,
+): Promise<void> {
+  const { data: tokens, error } = await supabaseAdmin
+    .from('push_tokens')
+    .select('token')
+    .eq('tenant_id', tenantId);
 
   if (error) {
     logger.error({ err: error, tenantId }, 'failed to load push tokens for tenant');
     return;
   }
 
+  const data = conversationId ? { conversationId } : undefined;
+
   logger.info({ tenantId, tokenCount: (tokens ?? []).length }, 'notifying tenant');
-  await Promise.all((tokens ?? []).map((row) => sendPushNotification(row.token, title, body)));
+  await Promise.all(
+    (tokens ?? []).map((row) => sendPushNotification(row.token, title, body, data)),
+  );
 }

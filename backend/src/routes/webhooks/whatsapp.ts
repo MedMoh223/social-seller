@@ -112,7 +112,7 @@ whatsappWebhookRouter.post('/', async (req, res) => {
           });
 
           const preview = content.length > PUSH_PREVIEW_LENGTH ? `${content.slice(0, PUSH_PREVIEW_LENGTH)}…` : content;
-          await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message WhatsApp', preview);
+          await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message WhatsApp', preview, conversationId);
         }
 
         for (const status of change.value.statuses ?? []) {

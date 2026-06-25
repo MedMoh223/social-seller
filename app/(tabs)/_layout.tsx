@@ -1,14 +1,59 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useEffect } from 'react';
-import { registerForPushNotificationsAsync } from '../../lib/notifications';
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 const ACTIVE_COLOR = '#6366F1';
 const INACTIVE_COLOR = '#94A3B8';
 
+// Statuts considérés comme "terminés" — exclus du badge commandes.
+// Modifier cette liste pour ajuster la logique du badge.
+const ORDERS_DONE_STATUSES = ['delivered', 'cancelled'];
+
 export default function TabsLayout() {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeOrdersCount, setActiveOrdersCount] = useState(0);
+
   useEffect(() => {
-    registerForPushNotificationsAsync();
+    let convChannel: ReturnType<typeof supabase.channel> | null = null;
+    let ordersChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function loadUnread() {
+      const { data } = await supabase
+        .from('conversations')
+        .select('unread_count')
+        .gt('unread_count', 0)
+        .is('deleted_at', null);
+      const total = (data ?? []).reduce((sum, row) => sum + (row.unread_count ?? 0), 0);
+      setUnreadCount(total);
+    }
+
+    async function loadActiveOrders() {
+      const { count } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .not('status', 'in', `(${ORDERS_DONE_STATUSES.join(',')})`)
+        .is('deleted_at', null);
+      setActiveOrdersCount(count ?? 0);
+    }
+
+    loadUnread();
+    loadActiveOrders();
+
+    convChannel = supabase
+      .channel('unread-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, loadUnread)
+      .subscribe();
+
+    ordersChannel = supabase
+      .channel('orders-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadActiveOrders)
+      .subscribe();
+
+    return () => {
+      if (convChannel) supabase.removeChannel(convChannel);
+      if (ordersChannel) supabase.removeChannel(ordersChannel);
+    };
   }, []);
 
   return (
@@ -30,28 +75,24 @@ export default function TabsLayout() {
         name="inbox"
         options={{
           title: 'Inbox',
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarIcon: ({ color, size }) => (
             <Feather name="message-square" size={size} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="clients"
-        options={{ href: null }}
-      />
+      <Tabs.Screen name="clients" options={{ href: null }} />
       <Tabs.Screen
         name="orders"
         options={{
           title: 'Commandes',
+          tabBarBadge: activeOrdersCount > 0 ? activeOrdersCount : undefined,
           tabBarIcon: ({ color, size }) => (
             <Feather name="shopping-cart" size={size} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="stock"
-        options={{ href: null }}
-      />
+      <Tabs.Screen name="stock" options={{ href: null }} />
       <Tabs.Screen
         name="stats"
         options={{
@@ -61,10 +102,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="channels"
-        options={{ href: null }}
-      />
+      <Tabs.Screen name="channels" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{

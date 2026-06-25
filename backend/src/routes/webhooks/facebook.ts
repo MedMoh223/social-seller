@@ -141,7 +141,7 @@ facebookWebhookRouter.post('/', async (req, res) => {
         });
 
         const preview = content.length > PUSH_PREVIEW_LENGTH ? `${content.slice(0, PUSH_PREVIEW_LENGTH)}…` : content;
-        await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message Facebook', preview);
+        await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message Facebook', preview, conversationId);
       }
     }
 
