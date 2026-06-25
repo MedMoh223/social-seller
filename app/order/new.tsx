@@ -126,7 +126,7 @@ export default function NewOrderScreen() {
   const totalAmount = Math.max(0, itemsTotal + parsedDeliveryFee - parsedDiscount);
 
   const handleSave = async () => {
-    if (!customerName.trim()) { setError('Le nom du client est obligatoire.'); return; }
+    if (!(customerName ?? '').trim()) { setError('Le nom du client est obligatoire.'); return; }
     if (items.length === 0) { setError('Ajoutez au moins un produit.'); return; }
     setError(null);
     setIsSaving(true);
@@ -139,7 +139,7 @@ export default function NewOrderScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          customerName: customerName.trim(),
+          customerName: (customerName ?? '').trim(),
           customerId: customerId || null,
           conversationId: conversationId ?? null,
           deliveryAddress: deliveryAddress.trim() || null,
@@ -404,14 +404,14 @@ export default function NewOrderScreen() {
                   key={c.id}
                   style={styles.customerPickerRow}
                   onPress={() => {
-                    setCustomerName(c.full_name);
+                    setCustomerName(c.full_name ?? c.phone ?? '');
                     setCustomerId(c.id);
                     setShowCustomerPicker(false);
                     setCustomerSearch('');
                   }}
                 >
-                  <Text style={styles.customerPickerName}>{c.full_name}</Text>
-                  {c.phone ? <Text style={styles.customerPickerPhone}>{c.phone}</Text> : null}
+                  <Text style={styles.customerPickerName}>{c.full_name ?? c.phone ?? 'Client'}</Text>
+                  {c.phone && c.full_name ? <Text style={styles.customerPickerPhone}>{c.phone}</Text> : null}
                 </Pressable>
               ))}
               {filteredCustomers.length === 0 ? (
