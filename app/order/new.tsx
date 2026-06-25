@@ -172,7 +172,7 @@ export default function NewOrderScreen() {
   );
 
   const filteredCustomers = customers.filter((c) =>
-    c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    (c.full_name ?? '').toLowerCase().includes(customerSearch.toLowerCase()) ||
     (c.phone ?? '').includes(customerSearch),
   );
 
@@ -213,16 +213,19 @@ export default function NewOrderScreen() {
                   onChangeText={(v) => { setCustomerName(v); setCustomerId(''); }}
                   placeholder="Nom du client"
                   placeholderTextColor="#94A3B8"
+                  editable={!conversationId}
                 />
-                <Pressable
-                  style={styles.pickCustomerBtn}
-                  onPress={() => {
-                    fetchCustomers();
-                    setShowCustomerPicker(true);
-                  }}
-                >
-                  <Feather name="users" size={16} color="#6366F1" />
-                </Pressable>
+                {!conversationId ? (
+                  <Pressable
+                    style={styles.pickCustomerBtn}
+                    onPress={() => {
+                      fetchCustomers();
+                      setShowCustomerPicker(true);
+                    }}
+                  >
+                    <Feather name="users" size={16} color="#6366F1" />
+                  </Pressable>
+                ) : null}
               </View>
               {customerId ? (
                 <Text style={styles.customerLinkedText}>
