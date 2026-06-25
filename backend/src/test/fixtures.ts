@@ -58,6 +58,7 @@ export async function deleteTestTenant(tenant: TestTenant): Promise<void> {
   await supabaseAdmin.from('messages').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('orders').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('conversations').delete().eq('tenant_id', tenant.tenantId);
+  await supabaseAdmin.from('customers').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('social_connections').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('products').delete().eq('tenant_id', tenant.tenantId);
   await supabaseAdmin.from('audit_log').delete().eq('tenant_id', tenant.tenantId);
@@ -156,6 +157,38 @@ export async function createProduct(
 
   if (error || !data) {
     throw new Error(`failed to create test product: ${error?.message}`);
+  }
+
+  return data;
+}
+
+export async function createCustomer(
+  tenantId: string,
+  overrides: {
+    name?: string;
+    phone?: string | null;
+    email?: string | null;
+    source?: 'whatsapp' | 'facebook' | 'tiktok' | 'manual';
+    external_id?: string | null;
+    notes?: string | null;
+  } = {},
+) {
+  const { data, error } = await supabaseAdmin
+    .from('customers')
+    .insert({
+      tenant_id: tenantId,
+      name: overrides.name ?? `Test Customer ${randomUUID()}`,
+      phone: overrides.phone ?? null,
+      email: overrides.email ?? null,
+      source: overrides.source ?? 'manual',
+      external_id: overrides.external_id ?? null,
+      notes: overrides.notes ?? null,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(`failed to create test customer: ${error?.message}`);
   }
 
   return data;

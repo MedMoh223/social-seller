@@ -15,7 +15,7 @@ productsRouter.get('/', async (req, res, next) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('products')
-      .select('id, name, description, price, stock_quantity, alert_threshold, created_at')
+      .select('id, name, description, price, cost_price, stock_quantity, alert_threshold, image_urls, created_at')
       .eq('tenant_id', req.user!.tenantId)
       .is('deleted_at', null)
       .order('name', { ascending: true });
@@ -33,8 +33,10 @@ const createProductSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional(),
   price: z.number().nonnegative(),
+  costPrice: z.number().nonnegative().nullable().optional(),
   stockQuantity: z.number().int().min(0).default(0),
   alertThreshold: z.number().int().min(0).default(0),
+  imageUrls: z.array(z.string().url()).max(4).default([]),
 });
 
 productsRouter.post('/', async (req, res, next) => {
@@ -53,8 +55,10 @@ productsRouter.post('/', async (req, res, next) => {
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         price: parsed.data.price,
+        cost_price: parsed.data.costPrice ?? null,
         stock_quantity: parsed.data.stockQuantity,
         alert_threshold: parsed.data.alertThreshold,
+        image_urls: parsed.data.imageUrls,
       })
       .select()
       .single();
@@ -72,7 +76,9 @@ const updateProductSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   price: z.number().nonnegative().optional(),
+  costPrice: z.number().nonnegative().nullable().optional(),
   alertThreshold: z.number().int().min(0).optional(),
+  imageUrls: z.array(z.string().url()).max(4).optional(),
 });
 
 productsRouter.patch('/:id', async (req, res, next) => {
@@ -90,7 +96,9 @@ productsRouter.patch('/:id', async (req, res, next) => {
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.description !== undefined) updates.description = parsed.data.description;
   if (parsed.data.price !== undefined) updates.price = parsed.data.price;
+  if (parsed.data.costPrice !== undefined) updates.cost_price = parsed.data.costPrice;
   if (parsed.data.alertThreshold !== undefined) updates.alert_threshold = parsed.data.alertThreshold;
+  if (parsed.data.imageUrls !== undefined) updates.image_urls = parsed.data.imageUrls;
 
   if (Object.keys(updates).length === 0) {
     next(new ValidationError('Aucune modification fournie.'));

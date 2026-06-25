@@ -25,6 +25,13 @@ if (!process.env.SUPABASE_JWT_SECRET) {
   throw new Error('Missing SUPABASE_JWT_SECRET in backend/.env.test — required to sign test JWTs.');
 }
 
+// Note: SUPABASE_SERVICE_ROLE_KEY_TEST must be the legacy JWT-format
+// service_role key (eyJ...), not the new sb_secret_* format.
+// GoTrue Admin API (/auth/v1/admin/users) validates the apikey header
+// against a stored whitelist — only legacy JWT keys are in that list.
+// Enable "Legacy API Keys" in Supabase Dashboard → Project Settings → API
+// to retrieve the eyJ... service_role key for this env file.
+
 // Not project-specific — fixed test-only values so env.ts's validation
 // passes without needing real Meta/TikTok/Railway configuration.
 process.env.NODE_ENV = 'test';

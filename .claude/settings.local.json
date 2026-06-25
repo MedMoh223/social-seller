@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo *)",
+      "Bash(npm install *)",
+      "Bash(npm audit *)",
+      "Bash(npx tsc *)",
+      "Bash(npx expo-doctor *)",
+      "Bash(npm ls *)",
+      "Bash(git status *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
+    ]
+  }
+}

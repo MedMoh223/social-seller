@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { makeApp, makeAuthHeader } from './helpers';
-import { createOrder, createTestTenant, deleteTestTenant, type TestTenant } from './fixtures';
+import { createOrder, createProduct, createTestTenant, deleteTestTenant, type TestTenant } from './fixtures';
 
 describe('orders routes', () => {
   const app = makeApp();
@@ -65,5 +65,118 @@ describe('orders routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.order.status).toBe('confirmed');
+  });
+
+  // ── POST /orders ─────────────────────────────────────────────────────────────
+
+  it('creates an order with items and calculates totalAmount', async () => {
+    const product = await createProduct(tenantA.tenantId, { price: 2500 });
+
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        customerName: 'Mamadou Koné',
+        items: [
+          { productId: product.id, quantity: 2, unitPrice: 2500 },
+        ],
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.order.customer_name).toBe('Mamadou Koné');
+    expect(response.body.order.total_amount).toBe(5000);
+    expect(response.body.order.status).toBe('new');
+  });
+
+  it('creates an order with multiple items', async () => {
+    const p1 = await createProduct(tenantA.tenantId, { price: 1000 });
+    const p2 = await createProduct(tenantA.tenantId, { price: 3000 });
+
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        customerName: 'Fatou Diallo',
+        items: [
+          { productId: p1.id, quantity: 3, unitPrice: 1000 },
+          { productId: p2.id, quantity: 1, unitPrice: 3000 },
+        ],
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.order.total_amount).toBe(6000);
+  });
+
+  it('links the order to a conversation when conversationId is provided', async () => {
+    const { supabaseAdmin } = await import('../lib/supabaseAdmin');
+    const { data: conv } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        tenant_id: tenantA.tenantId,
+        platform: 'whatsapp',
+        external_thread_id: 'wa-thread-test',
+        status: 'new',
+        customer_name: 'Test',
+      })
+      .select('id')
+      .single();
+
+    const product = await createProduct(tenantA.tenantId);
+
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        customerName: 'Linked Customer',
+        conversationId: conv!.id,
+        items: [{ productId: product.id, quantity: 1, unitPrice: 1000 }],
+      });
+
+    expect(response.status).toBe(201);
+  });
+
+  it('returns 400 when items array is empty', async () => {
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        customerName: 'Empty Cart',
+        items: [],
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('returns 400 when customerName is missing', async () => {
+    const product = await createProduct(tenantA.tenantId);
+
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        items: [{ productId: product.id, quantity: 1, unitPrice: 1000 }],
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('returns 400 when conversationId is not a valid UUID', async () => {
+    const product = await createProduct(tenantA.tenantId);
+
+    const response = await request(app)
+      .post('/orders')
+      .set(makeAuthHeader(tenantA.tenantId, tenantA.userId))
+      .send({
+        customerName: 'Test',
+        conversationId: 'not-a-uuid',
+        items: [{ productId: product.id, quantity: 1, unitPrice: 1000 }],
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('returns 401 on POST /orders without auth', async () => {
+    const response = await request(app).post('/orders').send({ customerName: 'X', items: [] });
+    expect(response.status).toBe(401);
   });
 });

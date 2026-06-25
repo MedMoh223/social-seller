@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 

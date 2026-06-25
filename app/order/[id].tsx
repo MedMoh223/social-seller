@@ -23,6 +23,9 @@ interface OrderDetail {
   id: string;
   customer_name: string | null;
   total_amount: number;
+  delivery_fee: number;
+  discount: number;
+  delivery_address: string | null;
   status: string;
   cancelled_reason: string | null;
   created_at: string;
@@ -154,7 +157,9 @@ export default function OrderDetailScreen() {
   const statusConfig = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.new;
   const nextAction = NEXT_ACTION[order.status];
   const canCancel = order.status === 'new' || order.status === 'confirmed';
-  const total = order.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const itemsTotal = order.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const hasDeliveryFee = (order.delivery_fee ?? 0) > 0;
+  const hasDiscount = (order.discount ?? 0) > 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -184,6 +189,13 @@ export default function OrderDetailScreen() {
         ) : null}
       </View>
 
+      {order.delivery_address ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Livraison</Text>
+          <Text style={styles.deliveryAddress}>{order.delivery_address}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Produits</Text>
         {order.items.map((item) => (
@@ -197,9 +209,29 @@ export default function OrderDetailScreen() {
             <Text style={styles.itemSubtotal}>{formatAmount(item.quantity * item.unit_price)}</Text>
           </View>
         ))}
+        {(hasDeliveryFee || hasDiscount) ? (
+          <View style={styles.subtotalSection}>
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>Sous-total articles</Text>
+              <Text style={styles.subtotalValue}>{formatAmount(itemsTotal)}</Text>
+            </View>
+            {hasDeliveryFee ? (
+              <View style={styles.subtotalRow}>
+                <Text style={styles.subtotalLabel}>Frais de livraison</Text>
+                <Text style={styles.subtotalValue}>+ {formatAmount(order.delivery_fee)}</Text>
+              </View>
+            ) : null}
+            {hasDiscount ? (
+              <View style={styles.subtotalRow}>
+                <Text style={styles.subtotalLabel}>Remise</Text>
+                <Text style={[styles.subtotalValue, styles.discountText]}>- {formatAmount(order.discount)}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatAmount(total)}</Text>
+          <Text style={styles.totalValue}>{formatAmount(order.total_amount)}</Text>
         </View>
       </View>
 
@@ -354,4 +386,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelConfirmButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  deliveryAddress: { fontSize: 13, color: '#334155', lineHeight: 20 },
+  subtotalSection: { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 8 },
+  subtotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  subtotalLabel: { fontSize: 12, color: '#64748B' },
+  subtotalValue: { fontSize: 12, color: '#334155', fontWeight: '600' },
+  discountText: { color: '#059669' },
 });

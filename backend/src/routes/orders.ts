@@ -74,7 +74,11 @@ ordersRouter.get('/:id', async (req, res, next) => {
 
 const createOrderSchema = z.object({
   customerName: z.string().trim().min(1).max(200),
+  customerId: z.string().uuid().optional().nullable(),
   conversationId: z.string().uuid().optional().nullable(),
+  deliveryAddress: z.string().trim().max(500).optional().nullable(),
+  deliveryFee: z.number().nonnegative().default(0),
+  discount: z.number().nonnegative().default(0),
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().int().min(1),
@@ -89,8 +93,9 @@ ordersRouter.post('/', async (req, res, next) => {
     return;
   }
 
-  const { customerName, conversationId, items } = parsed.data;
-  const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const { customerName, customerId, conversationId, deliveryAddress, deliveryFee, discount, items } = parsed.data;
+  const itemsTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const totalAmount = Math.max(0, itemsTotal + deliveryFee - discount);
 
   try {
     // Créer la commande
@@ -100,11 +105,15 @@ ordersRouter.post('/', async (req, res, next) => {
         tenant_id: req.user!.tenantId,
         agent_id: req.user!.id,
         customer_name: customerName,
+        customer_id: customerId ?? null,
         conversation_id: conversationId ?? null,
+        delivery_address: deliveryAddress ?? null,
+        delivery_fee: deliveryFee,
+        discount: discount,
         total_amount: totalAmount,
         status: 'new',
       })
-      .select('id, customer_name, total_amount, status, created_at')
+      .select('id, customer_name, customer_id, total_amount, delivery_fee, discount, status, created_at')
       .single();
 
     if (orderError) throw orderError;

@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -8,6 +8,7 @@ interface ProductRow {
   id: string;
   name: string;
   price: number;
+  cost_price: number | null;
   stock_quantity: number;
   alert_threshold: number;
 }
@@ -49,7 +50,7 @@ export default function StockScreen() {
   const fetchProducts = useCallback(async () => {
     const { data } = await supabase
       .from('products')
-      .select('id, name, price, stock_quantity, alert_threshold')
+      .select('id, name, price, cost_price, stock_quantity, alert_threshold')
       .is('deleted_at', null)
       .order('name', { ascending: true });
 
@@ -69,12 +70,31 @@ export default function StockScreen() {
     setIsRefreshing(false);
   };
 
+  const totalMarket = products.reduce((sum, p) => sum + p.price * p.stock_quantity, 0);
+  const totalCost = products.reduce((sum, p) => sum + (p.cost_price ?? 0) * p.stock_quantity, 0);
+
   const header = (
-    <View style={styles.headerRow}>
-      <Text style={styles.title}>Stock</Text>
-      <Pressable style={styles.addButton} onPress={() => router.push('/product/new')}>
-        <Feather name="plus" size={20} color="#FFFFFF" />
-      </Pressable>
+    <View>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Stock</Text>
+        <Pressable style={styles.addButton} onPress={() => router.push('/product/new')}>
+          <Feather name="plus" size={20} color="#FFFFFF" />
+        </Pressable>
+      </View>
+      {products.length > 0 ? (
+        <View style={styles.totalsCard}>
+          <View style={styles.totalBlock}>
+            <Text style={styles.totalLabel}>Valeur marché</Text>
+            <Text style={styles.totalValue}>{formatAmount(totalMarket)}</Text>
+          </View>
+          {totalCost > 0 ? (
+            <View style={styles.totalBlock}>
+              <Text style={styles.totalLabel}>Valeur coût</Text>
+              <Text style={[styles.totalValue, styles.totalValueMuted]}>{formatAmount(totalCost)}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -184,4 +204,18 @@ const styles = StyleSheet.create({
   skeletonBlock: { backgroundColor: '#E2E8F0', borderRadius: 8 },
   skeletonLineWide: { height: 14, width: '50%', marginBottom: 8 },
   skeletonLineNarrow: { height: 12, width: '70%' },
+  totalsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    gap: 16,
+  },
+  totalBlock: { flex: 1 },
+  totalLabel: { fontSize: 11, fontWeight: '600', color: '#64748B', marginBottom: 4 },
+  totalValue: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  totalValueMuted: { color: '#6366F1' },
 });

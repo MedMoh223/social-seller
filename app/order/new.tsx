@@ -3,11 +3,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +23,12 @@ interface Product {
   stock_quantity: number;
 }
 
+interface Customer {
+  id: string;
+  full_name: string;
+  phone: string | null;
+}
+
 interface OrderItem {
   product: Product;
   quantity: number;
@@ -33,19 +40,30 @@ function formatAmount(n: number) {
 
 export default function NewOrderScreen() {
   const router = useRouter();
-  // conversationId et customerName peuvent être pré-remplis depuis la conversation
-  const { conversationId, customerName: prefilledName } = useLocalSearchParams<{
+  const { conversationId, customerName: prefilledName, customerId: prefilledCustomerId } = useLocalSearchParams<{
     conversationId?: string;
     customerName?: string;
+    customerId?: string;
   }>();
 
   const [customerName, setCustomerName] = useState(prefilledName ?? '');
+  const [customerId, setCustomerId] = useState(prefilledCustomerId ?? '');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState('0');
+  const [discount, setDiscount] = useState('0');
+
   const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [search, setSearch] = useState('');
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Customer picker modal
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -59,6 +77,21 @@ export default function NewOrderScreen() {
       setProducts(body.products ?? []);
     }
     setIsLoadingProducts(false);
+  }, []);
+
+  const fetchCustomers = useCallback(async () => {
+    setIsLoadingCustomers(true);
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!apiUrl || !session) { setIsLoadingCustomers(false); return; }
+    const res = await fetch(`${apiUrl}/customers?limit=100`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (res.ok) {
+      const body = await res.json();
+      setCustomers(body.customers ?? []);
+    }
+    setIsLoadingCustomers(false);
   }, []);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
@@ -87,7 +120,10 @@ export default function NewOrderScreen() {
     }
   };
 
-  const totalAmount = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const parsedDeliveryFee = Math.max(0, Number(deliveryFee) || 0);
+  const parsedDiscount = Math.max(0, Number(discount) || 0);
+  const itemsTotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const totalAmount = Math.max(0, itemsTotal + parsedDeliveryFee - parsedDiscount);
 
   const handleSave = async () => {
     if (!customerName.trim()) { setError('Le nom du client est obligatoire.'); return; }
@@ -104,7 +140,11 @@ export default function NewOrderScreen() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
           customerName: customerName.trim(),
+          customerId: customerId || null,
           conversationId: conversationId ?? null,
+          deliveryAddress: deliveryAddress.trim() || null,
+          deliveryFee: parsedDeliveryFee,
+          discount: parsedDiscount,
           items: items.map((i) => ({
             productId: i.product.id,
             quantity: i.quantity,
@@ -129,6 +169,11 @@ export default function NewOrderScreen() {
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const filteredCustomers = customers.filter((c) =>
+    c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    (c.phone ?? '').includes(customerSearch),
   );
 
   return (
@@ -160,15 +205,63 @@ export default function NewOrderScreen() {
 
             {/* Client */}
             <View style={styles.card}>
-              <View style={styles.fieldRow}>
-                <Feather name="user" size={16} color="#94A3B8" style={styles.fieldIcon} />
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>NOM DU CLIENT *</Text>
+              <Text style={styles.sectionLabel}>CLIENT *</Text>
+              <View style={styles.customerRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={customerName}
+                  onChangeText={(v) => { setCustomerName(v); setCustomerId(''); }}
+                  placeholder="Nom du client"
+                  placeholderTextColor="#94A3B8"
+                />
+                <Pressable
+                  style={styles.pickCustomerBtn}
+                  onPress={() => {
+                    fetchCustomers();
+                    setShowCustomerPicker(true);
+                  }}
+                >
+                  <Feather name="users" size={16} color="#6366F1" />
+                </Pressable>
+              </View>
+              {customerId ? (
+                <Text style={styles.customerLinkedText}>
+                  <Feather name="check-circle" size={11} color="#059669" /> Client lié
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Livraison */}
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>LIVRAISON (OPTIONNEL)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={deliveryAddress}
+                onChangeText={setDeliveryAddress}
+                placeholder="Adresse de livraison"
+                placeholderTextColor="#94A3B8"
+                multiline
+              />
+              <View style={styles.feesRow}>
+                <View style={styles.feeBlock}>
+                  <Text style={styles.feeLabel}>FRAIS LIVRAISON</Text>
                   <TextInput
-                    style={styles.input}
-                    value={customerName}
-                    onChangeText={setCustomerName}
-                    placeholder="Nom complet"
+                    style={styles.feeInput}
+                    value={deliveryFee}
+                    onChangeText={setDeliveryFee}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <View style={styles.feeBlock}>
+                  <Text style={styles.feeLabel}>REMISE</Text>
+                  <TextInput
+                    style={styles.feeInput}
+                    value={discount}
+                    onChangeText={setDiscount}
+                    keyboardType="numeric"
+                    placeholder="0"
                     placeholderTextColor="#94A3B8"
                   />
                 </View>
@@ -199,6 +292,26 @@ export default function NewOrderScreen() {
                     </View>
                   </View>
                 ))}
+                {(parsedDeliveryFee > 0 || parsedDiscount > 0) ? (
+                  <View style={styles.subtotalSection}>
+                    <View style={styles.subtotalRow}>
+                      <Text style={styles.subtotalLabel}>Articles</Text>
+                      <Text style={styles.subtotalValue}>{formatAmount(itemsTotal)}</Text>
+                    </View>
+                    {parsedDeliveryFee > 0 ? (
+                      <View style={styles.subtotalRow}>
+                        <Text style={styles.subtotalLabel}>Livraison</Text>
+                        <Text style={styles.subtotalValue}>+ {formatAmount(parsedDeliveryFee)}</Text>
+                      </View>
+                    ) : null}
+                    {parsedDiscount > 0 ? (
+                      <View style={styles.subtotalRow}>
+                        <Text style={styles.subtotalLabel}>Remise</Text>
+                        <Text style={[styles.subtotalValue, styles.discountText]}>- {formatAmount(parsedDiscount)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Total</Text>
                   <Text style={styles.totalAmount}>{formatAmount(totalAmount)}</Text>
@@ -258,6 +371,53 @@ export default function NewOrderScreen() {
         }
         contentContainerStyle={styles.list}
       />
+
+      {/* Customer picker modal */}
+      <Modal visible={showCustomerPicker} animationType="slide" onRequestClose={() => setShowCustomerPicker(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Choisir un client</Text>
+            <Pressable onPress={() => setShowCustomerPicker(false)}>
+              <Feather name="x" size={22} color="#0F172A" />
+            </Pressable>
+          </View>
+          <View style={styles.searchRow}>
+            <Feather name="search" size={15} color="#94A3B8" style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              value={customerSearch}
+              onChangeText={setCustomerSearch}
+              placeholder="Rechercher…"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+          </View>
+          {isLoadingCustomers ? (
+            <ActivityIndicator color="#6366F1" style={{ marginTop: 40 }} />
+          ) : (
+            <ScrollView>
+              {filteredCustomers.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={styles.customerPickerRow}
+                  onPress={() => {
+                    setCustomerName(c.full_name);
+                    setCustomerId(c.id);
+                    setShowCustomerPicker(false);
+                    setCustomerSearch('');
+                  }}
+                >
+                  <Text style={styles.customerPickerName}>{c.full_name}</Text>
+                  {c.phone ? <Text style={styles.customerPickerPhone}>{c.phone}</Text> : null}
+                </Pressable>
+              ))}
+              {filteredCustomers.length === 0 ? (
+                <Text style={styles.emptyText}>Aucun client trouvé.</Text>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -272,22 +432,31 @@ const styles = StyleSheet.create({
   saveBtnText:  { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   list:         { padding: 16 },
   errorText:    { color: '#DC2626', fontSize: 13, marginBottom: 12, textAlign: 'center' },
-  card:         { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, overflow: 'hidden' },
-  fieldRow:     { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14 },
-  fieldIcon:    { marginRight: 12, marginTop: 2 },
-  fieldContent: { flex: 1 },
-  fieldLabel:   { fontSize: 11, fontWeight: '600', color: '#94A3B8', marginBottom: 4, letterSpacing: 0.5 },
-  input:        { fontSize: 15, color: '#0F172A', padding: 0 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
-  cartSection:  { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 16, overflow: 'hidden' },
-  cartRow:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  card:         { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, padding: 14 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 },
+  customerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pickCustomerBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+  customerLinkedText: { fontSize: 11, color: '#059669', marginTop: 6 },
+  input:        { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC' },
+  textArea:     { minHeight: 60, textAlignVertical: 'top', marginBottom: 12 },
+  feesRow:      { flexDirection: 'row', gap: 12 },
+  feeBlock:     { flex: 1 },
+  feeLabel:     { fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.6, marginBottom: 4 },
+  feeInput:     { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC' },
+  cartSection:  { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 16, overflow: 'hidden', padding: 14 },
+  cartRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   cartBody:     { flex: 1 },
   cartName:     { fontSize: 14, fontWeight: '600', color: '#0F172A' },
   cartPrice:    { fontSize: 12, color: '#64748B', marginTop: 2 },
   qtyRow:       { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn:       { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
   qtyText:      { fontSize: 14, fontWeight: '700', color: '#0F172A', minWidth: 20, textAlign: 'center' },
-  totalRow:     { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
+  subtotalSection: { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 8 },
+  subtotalRow:  { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
+  subtotalLabel: { fontSize: 12, color: '#64748B' },
+  subtotalValue: { fontSize: 12, color: '#334155', fontWeight: '600' },
+  discountText: { color: '#059669' },
+  totalRow:     { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   totalLabel:   { fontSize: 14, fontWeight: '700', color: '#0F172A' },
   totalAmount:  { fontSize: 15, fontWeight: '800', color: '#6366F1' },
   searchRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
@@ -301,4 +470,11 @@ const styles = StyleSheet.create({
   inCartText:   { fontSize: 13, fontWeight: '700', color: '#6366F1' },
   outOfStockText: { fontSize: 12, color: '#94A3B8' },
   emptyText:    { textAlign: 'center', color: '#94A3B8', fontSize: 13, marginTop: 20 },
+  // Customer picker modal
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60, paddingHorizontal: 16 },
+  modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  customerPickerRow: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, marginBottom: 8 },
+  customerPickerName: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
+  customerPickerPhone: { fontSize: 12, color: '#64748B', marginTop: 2 },
 });

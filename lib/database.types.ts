@@ -309,8 +309,10 @@ export interface Database {
           name: string;
           description: string | null;
           price: number;
+          cost_price: number | null;
           stock_quantity: number;
           alert_threshold: number;
+          image_urls: string[];
           deleted_at: string | null;
           created_at: string;
         };
@@ -320,8 +322,10 @@ export interface Database {
           name: string;
           description?: string | null;
           price: number;
+          cost_price?: number | null;
           stock_quantity?: number;
           alert_threshold?: number;
+          image_urls?: string[];
           deleted_at?: string | null;
           created_at?: string;
         };
@@ -331,8 +335,10 @@ export interface Database {
           name?: string;
           description?: string | null;
           price?: number;
+          cost_price?: number | null;
           stock_quantity?: number;
           alert_threshold?: number;
+          image_urls?: string[];
           deleted_at?: string | null;
           created_at?: string;
         };
@@ -353,7 +359,11 @@ export interface Database {
           conversation_id: string | null;
           agent_id: string | null;
           customer_name: string | null;
+          customer_id: string | null;
           total_amount: number;
+          delivery_fee: number;
+          discount: number;
+          delivery_address: string | null;
           status: string;
           cancelled_reason: string | null;
           created_at: string;
@@ -364,7 +374,11 @@ export interface Database {
           conversation_id?: string | null;
           agent_id?: string | null;
           customer_name?: string | null;
+          customer_id?: string | null;
           total_amount?: number;
+          delivery_fee?: number;
+          discount?: number;
+          delivery_address?: string | null;
           status?: string;
           cancelled_reason?: string | null;
           created_at?: string;
@@ -375,7 +389,11 @@ export interface Database {
           conversation_id?: string | null;
           agent_id?: string | null;
           customer_name?: string | null;
+          customer_id?: string | null;
           total_amount?: number;
+          delivery_fee?: number;
+          discount?: number;
+          delivery_address?: string | null;
           status?: string;
           cancelled_reason?: string | null;
           created_at?: string;

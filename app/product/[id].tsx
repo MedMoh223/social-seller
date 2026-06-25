@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -19,8 +20,14 @@ interface ProductDetail {
   name: string;
   description: string | null;
   price: number;
+  cost_price: number | null;
   stock_quantity: number;
   alert_threshold: number;
+  image_urls: string[];
+}
+
+function formatAmount(n: number) {
+  return `${n.toLocaleString('fr-FR')} FCFA`;
 }
 
 async function authorizedFetch(path: string, init: RequestInit = {}) {
@@ -54,6 +61,7 @@ export default function ProductDetailScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [costPrice, setCostPrice] = useState('');
   const [alertThreshold, setAlertThreshold] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -70,7 +78,7 @@ export default function ProductDetailScreen() {
 
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price, stock_quantity, alert_threshold')
+      .select('id, name, description, price, cost_price, stock_quantity, alert_threshold, image_urls')
       .eq('id', id)
       .is('deleted_at', null)
       .maybeSingle();
@@ -84,6 +92,7 @@ export default function ProductDetailScreen() {
     setName(data.name);
     setDescription(data.description ?? '');
     setPrice(String(data.price));
+    setCostPrice(data.cost_price != null ? String(data.cost_price) : '');
     setAlertThreshold(String(data.alert_threshold));
   }, [id]);
 
@@ -97,6 +106,7 @@ export default function ProductDetailScreen() {
 
     const trimmedName = name.trim();
     const parsedPrice = Number(price);
+    const parsedCostPrice = costPrice.trim() ? Number(costPrice) : null;
     const parsedThreshold = Number(alertThreshold);
 
     if (!trimmedName) {
@@ -106,6 +116,11 @@ export default function ProductDetailScreen() {
 
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
       setErrorMessage('Le prix doit être un nombre positif.');
+      return;
+    }
+
+    if (parsedCostPrice !== null && (!Number.isFinite(parsedCostPrice) || parsedCostPrice < 0)) {
+      setErrorMessage('Le prix de revient doit être un nombre positif.');
       return;
     }
 
@@ -123,6 +138,7 @@ export default function ProductDetailScreen() {
           name: trimmedName,
           description: description.trim() || null,
           price: parsedPrice,
+          costPrice: parsedCostPrice,
           alertThreshold: parsedThreshold,
         }),
       });
@@ -237,6 +253,17 @@ export default function ProductDetailScreen() {
         <Text style={styles.headerTitle}>Modifier le produit</Text>
       </View>
 
+      {product.image_urls && product.image_urls.length > 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.label}>PHOTOS</Text>
+          <View style={styles.imagesRow}>
+            {product.image_urls.map((url) => (
+              <Image key={url} source={{ uri: url }} style={styles.imageThumb} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.label}>NOM *</Text>
         <TextInput
@@ -257,15 +284,30 @@ export default function ProductDetailScreen() {
           multiline
         />
 
-        <Text style={styles.label}>PRIX (FCFA) *</Text>
-        <TextInput
-          style={styles.input}
-          value={price}
-          onChangeText={setPrice}
-          placeholder="0"
-          placeholderTextColor="#94A3B8"
-          keyboardType="numeric"
-        />
+        <View style={styles.priceRow}>
+          <View style={styles.priceBlock}>
+            <Text style={styles.label}>PRIX DE VENTE (FCFA) *</Text>
+            <TextInput
+              style={styles.input}
+              value={price}
+              onChangeText={setPrice}
+              placeholder="0"
+              placeholderTextColor="#94A3B8"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.priceBlock}>
+            <Text style={styles.label}>PRIX DE REVIENT</Text>
+            <TextInput
+              style={styles.input}
+              value={costPrice}
+              onChangeText={setCostPrice}
+              placeholder="0"
+              placeholderTextColor="#94A3B8"
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
 
         <Text style={styles.label}>SEUIL D&apos;ALERTE STOCK</Text>
         <TextInput
@@ -287,6 +329,23 @@ export default function ProductDetailScreen() {
             <Text style={styles.adjustButtonText}>Ajuster le stock</Text>
           </Pressable>
         </View>
+
+        {(product.price > 0 || (product.cost_price ?? 0) > 0) ? (
+          <View style={styles.stockValueRow}>
+            <View style={styles.stockValueBlock}>
+              <Text style={styles.stockValueLabel}>Valeur marché</Text>
+              <Text style={styles.stockValueAmount}>{formatAmount(product.price * product.stock_quantity)}</Text>
+            </View>
+            {product.cost_price != null ? (
+              <View style={styles.stockValueBlock}>
+                <Text style={styles.stockValueLabel}>Valeur coût</Text>
+                <Text style={[styles.stockValueAmount, styles.stockValueCost]}>
+                  {formatAmount(product.cost_price * product.stock_quantity)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -464,4 +523,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalPrimaryButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  priceRow: { flexDirection: 'row', gap: 12 },
+  priceBlock: { flex: 1 },
+  imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  imageThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: '#F1F5F9' },
+  stockValueRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 16,
+  },
+  stockValueBlock: { flex: 1 },
+  stockValueLabel: { fontSize: 10, fontWeight: '600', color: '#94A3B8', marginBottom: 2, letterSpacing: 0.5 },
+  stockValueAmount: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  stockValueCost: { color: '#6366F1' },
 });

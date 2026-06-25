@@ -110,7 +110,7 @@ export default function CustomerScreen() {
       const { data } = await supabase
         .from('conversations')
         .select('id, platform, customer_name, updated_at')
-        .eq('customer_fk_id', id)
+        .eq('customer_id', id)
         .is('deleted_at', null)
         .order('updated_at', { ascending: false })
         .limit(20);

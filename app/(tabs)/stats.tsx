@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -97,9 +97,12 @@ export default function StatsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStats().finally(() => setIsLoading(false));
-  }, [fetchStats]);
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchStats().finally(() => setIsLoading(false));
+    }, [fetchStats]),
+  );
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

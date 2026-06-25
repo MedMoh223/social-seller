@@ -1,14 +1,29 @@
 import { Router } from 'express';
 import { env } from '../../config/env';
-import { verifyMetaSignature, verifyWebhookChallenge } from '../../services/metaGraphClient';
+import { verifyMetaSignature, verifyWebhookChallenge, graphGet } from '../../services/metaGraphClient';
 import { recordWebhookEvent, markWebhookEventResolved } from '../../services/webhookEventService';
 import { resolveTenantForExternalAccount } from '../../services/connectionsService';
 import { findOrCreateConversation, recordInboundMessage } from '../../services/conversationService';
 import { notifyTenantNewMessage } from '../../services/pushService';
 import { logger } from '../../lib/logger';
 import { facebookWebhookPayloadSchema } from '../../validators/facebook.schema';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { decryptToken } from '../../lib/tokenCrypto';
 
 const PUSH_PREVIEW_LENGTH = 50;
+
+// Fetch a Messenger sender's display name via the Graph API using the
+// page access token. Returns null on any error — name is best-effort
+// and must never block message delivery.
+async function fetchSenderName(senderId: string, pageToken: string): Promise<string | null> {
+  try {
+    const profile = await graphGet<{ name?: string }>(`/${senderId}?fields=name`, pageToken);
+    return profile.name ?? null;
+  } catch (err) {
+    logger.warn({ err, senderId }, 'could not fetch facebook sender name from Graph API');
+    return null;
+  }
+}
 
 export const facebookWebhookRouter = Router();
 
@@ -71,27 +86,60 @@ facebookWebhookRouter.post('/', async (req, res) => {
 
       lastResolved = resolved;
 
+      // Decrypt the page access token once per entry — used for sender
+      // name lookups. Failures are non-fatal: name stays null and
+      // delivery continues normally.
+      let pageToken: string | null = null;
+      try {
+        const { data: conn } = await supabaseAdmin
+          .from('social_connections')
+          .select('access_token_enc')
+          .eq('id', resolved.socialConnectionId)
+          .single();
+        if (conn?.access_token_enc) {
+          pageToken = decryptToken(conn.access_token_enc);
+        }
+      } catch (err) {
+        logger.warn({ err }, 'could not load page access token for sender name lookup');
+      }
+
+      // Cache sender names within this delivery batch so multiple
+      // messages from the same sender only trigger one Graph API call.
+      const senderNameCache = new Map<string, string | null>();
+
       for (const messaging of entry.messaging ?? []) {
         if (!messaging.message?.text) {
-          continue; // postbacks/reads/etc. — out of scope this sprint
+          continue; // postbacks/reads/typing indicators — out of scope
         }
+
+        const senderId = messaging.sender.id;
+
+        // Fetch sender name (best-effort, cached per batch)
+        if (pageToken && !senderNameCache.has(senderId)) {
+          senderNameCache.set(senderId, await fetchSenderName(senderId, pageToken));
+        }
+        const customerName = senderNameCache.get(senderId) ?? null;
 
         const conversationId = await findOrCreateConversation({
           tenantId: resolved.tenantId,
           platform: 'facebook',
-          externalThreadId: messaging.sender.id,
+          externalThreadId: senderId,
           socialConnectionId: resolved.socialConnectionId,
+          customerName,
+          customerId: senderId,
         });
+
+        const content = messaging.message.text;
 
         await recordInboundMessage({
           tenantId: resolved.tenantId,
           conversationId,
           socialConnectionId: resolved.socialConnectionId,
           externalMessageId: messaging.message.mid,
-          content: messaging.message.text,
+          content,
+          messageType: 'text',
         });
 
-        const content = messaging.message.text;
         const preview = content.length > PUSH_PREVIEW_LENGTH ? `${content.slice(0, PUSH_PREVIEW_LENGTH)}…` : content;
         await notifyTenantNewMessage(resolved.tenantId, 'Nouveau message Facebook', preview);
       }
