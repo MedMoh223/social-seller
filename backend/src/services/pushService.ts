@@ -6,11 +6,9 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 interface ExpoPushTicket {
   status?: string;
   message?: string;
+  details?: Record<string, unknown>;
 }
 
-// A push token is effectively a bearer credential for notifying that
-// device — never logged in full, only enough of a prefix to correlate
-// a failure with a specific row in push_tokens.
 function tokenPrefix(token: string): string {
   return token.slice(0, 8);
 }
@@ -37,16 +35,21 @@ export async function sendPushNotification(
     const ticket = Array.isArray(result.data) ? result.data[0] : result.data;
 
     if (ticket?.status === 'error') {
-      logger.warn({ tokenPrefix: tokenPrefix(token), error: ticket.message }, 'push notification ticket error');
+      logger.warn(
+        { tokenPrefix: tokenPrefix(token), error: ticket.message, details: ticket.details },
+        'push notification ticket error',
+      );
+    } else {
+      logger.info(
+        { tokenPrefix: tokenPrefix(token), status: ticket?.status },
+        'push notification ticket ok',
+      );
     }
   } catch (err) {
     logger.error({ err, tokenPrefix: tokenPrefix(token) }, 'failed to send push notification');
   }
 }
 
-// Loads every push token registered for the tenant — explicitly scoped
-// by tenant_id, so a token belonging to a different tenant is never
-// even loaded into memory here, let alone notified.
 export async function notifyTenantNewMessage(tenantId: string, title: string, body: string): Promise<void> {
   const { data: tokens, error } = await supabaseAdmin.from('push_tokens').select('token').eq('tenant_id', tenantId);
 
@@ -55,5 +58,6 @@ export async function notifyTenantNewMessage(tenantId: string, title: string, bo
     return;
   }
 
+  logger.info({ tenantId, tokenCount: (tokens ?? []).length }, 'notifying tenant');
   await Promise.all((tokens ?? []).map((row) => sendPushNotification(row.token, title, body)));
 }
