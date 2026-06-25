@@ -140,7 +140,8 @@ export default function NewOrderScreen() {
   const itemsTotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const totalAmount = Math.max(0, itemsTotal + parsedDeliveryFee - parsedDiscount);
 
-  // Creates customer if none linked, returns the id
+  // Returns an existing or newly created customer id.
+  // Priority: pre-selected picker → existing by external_id → create new.
   async function ensureCustomer(apiUrl: string, token: string): Promise<string | null> {
     if (customerId) return customerId;
 
@@ -148,8 +149,11 @@ export default function NewOrderScreen() {
     const phone = customerPhone.trim() || null;
     if (!name && !phone) return null;
 
-    // For platform conversations, grab the current customer_id (= platform sender ID / PSID)
-    // so we can store it as external_id on the customer for future conversation matching.
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    const source = (platform as 'whatsapp' | 'facebook' | 'tiktok' | 'manual' | undefined) ?? 'manual';
+
+    // For platform conversations, read the current sender ID (PSID / phone)
+    // stored in conversations.customer_id before we overwrite it.
     let platformSenderId: string | null = null;
     if (conversationId) {
       const { data: conv } = await supabase
@@ -157,29 +161,62 @@ export default function NewOrderScreen() {
         .select('customer_id')
         .eq('id', conversationId)
         .maybeSingle();
-      platformSenderId = conv?.customer_id ?? null;
+      // Only use it as external_id if it looks like a platform sender (not already a UUID)
+      const val = conv?.customer_id ?? null;
+      const isUuid = val && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(val);
+      platformSenderId = isUuid ? null : val;
     }
 
-    const source = (platform as 'whatsapp' | 'facebook' | 'tiktok' | 'manual' | undefined) ?? 'manual';
+    // 1. If we have a platform sender ID, check if a customer already exists for it.
+    if (platformSenderId) {
+      const lookupRes = await fetch(
+        `${apiUrl}/customers?external_id=${encodeURIComponent(platformSenderId)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (lookupRes.ok) {
+        const lookupBody = await lookupRes.json();
+        const existing = lookupBody.customers?.[0];
+        if (existing) {
+          // Update name/phone if the merchant filled them in
+          if (name && existing.name !== name) {
+            await fetch(`${apiUrl}/customers/${existing.id}`, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ name, phone: phone ?? existing.phone }),
+            });
+          }
+          // Re-link conversation to this customer UUID
+          if (conversationId) {
+            await supabase
+              .from('conversations')
+              .update({ customer_id: existing.id, customer_name: name || existing.name })
+              .eq('id', conversationId);
+          }
+          return existing.id;
+        }
+      }
+    }
 
-    const res = await fetch(`${apiUrl}/customers`, {
+    // 2. Create a new customer.
+    const createRes = await fetch(`${apiUrl}/customers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers,
       body: JSON.stringify({
         name: name || phone,
         phone,
         source,
-        // store the platform sender ID so conversation lookups work by external_id
         external_id: platformSenderId ?? undefined,
       }),
     });
 
-    if (!res.ok) return null;
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => null);
+      throw new Error(err?.error?.message ?? 'Impossible de créer le client.');
+    }
 
-    const body = await res.json();
+    const body = await createRes.json();
     const newId: string = body.customer?.id;
 
-    // Update conversation: replace platform sender ID with customer UUID + name
     if (newId && conversationId) {
       await supabase
         .from('conversations')
