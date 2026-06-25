@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "708179665443",
+    "project_id": "social-seller-1d011",
+    "storage_bucket": "social-seller-1d011.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:708179665443:android:592e16e1cf3b567583c796",
+        "android_client_info": {
+          "package_name": "com.djiguitech.socialseller"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQbPlzTatXoxdJSHqIZQxsn_4DyXKhgBo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
