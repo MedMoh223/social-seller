@@ -37,10 +37,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="clients"
-        options={{
-          title: 'Clients',
-          tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="orders"
@@ -53,10 +50,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="stock"
-        options={{
-          title: 'Stock',
-          tabBarIcon: ({ color, size }) => <Feather name="package" size={size} color={color} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="stats"
@@ -69,10 +63,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="channels"
-        options={{
-          title: 'Canaux',
-          tabBarIcon: ({ color, size }) => <Feather name="link-2" size={size} color={color} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"
