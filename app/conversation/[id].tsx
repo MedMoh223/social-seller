@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
@@ -51,6 +52,7 @@ function formatTime(isoDate: string): string {
 export default function ConversationScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [conversation, setConversation] = useState<ConversationInfo | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -419,7 +421,7 @@ export default function ConversationScreen() {
         />
       )}
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {sendError ? <Text style={styles.composerError}>{sendError}</Text> : null}
         <View style={styles.composerRow}>
           <TextInput
@@ -492,7 +494,7 @@ const styles = StyleSheet.create({
   deliveryIcon: { marginLeft: 4 },
   composer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
