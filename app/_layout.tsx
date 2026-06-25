@@ -1,7 +1,18 @@
 import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { registerForPushNotificationsAsync } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+
+// Must be called outside any component — controls how notifications are
+// handled when the app is in the foreground (and affects background behaviour).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export default function RootLayout() {
   useEffect(() => {
