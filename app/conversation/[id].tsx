@@ -322,7 +322,9 @@ export default function ConversationScreen() {
                 pathname: '/order/new',
                 params: {
                   conversationId: id,
-                  customerName: conversation.customer_name ?? conversation.customer_id ?? '',
+                  platform: conversation.platform,
+                  customerName: conversation.customer_name ?? '',
+                  customerId: conversation.customer_id ?? '',
                 },
               })
             }

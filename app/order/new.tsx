@@ -23,9 +23,10 @@ interface Product {
   stock_quantity: number;
 }
 
+// backend returns `name`, not `full_name`
 interface Customer {
   id: string;
-  full_name: string;
+  name: string | null;
   phone: string | null;
 }
 
@@ -38,15 +39,29 @@ function formatAmount(n: number) {
   return `${n.toLocaleString('fr-FR')} FCFA`;
 }
 
+function customerLabel(c: Customer): string {
+  return c.name ?? c.phone ?? 'Client';
+}
+
 export default function NewOrderScreen() {
   const router = useRouter();
-  const { conversationId, customerName: prefilledName, customerId: prefilledCustomerId } = useLocalSearchParams<{
+  const {
+    conversationId,
+    platform,
+    customerName: prefilledName,
+    customerId: prefilledCustomerId,
+  } = useLocalSearchParams<{
     conversationId?: string;
+    platform?: string;
     customerName?: string;
     customerId?: string;
   }>();
 
+  // WhatsApp: customer already identified by phone — lock the name field
+  const isWhatsApp = platform === 'whatsapp';
+
   const [customerName, setCustomerName] = useState(prefilledName ?? '');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [customerId, setCustomerId] = useState(prefilledCustomerId ?? '');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('0');
@@ -125,22 +140,61 @@ export default function NewOrderScreen() {
   const itemsTotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const totalAmount = Math.max(0, itemsTotal + parsedDeliveryFee - parsedDiscount);
 
+  // Creates customer if none linked, returns the id
+  async function ensureCustomer(apiUrl: string, token: string): Promise<string | null> {
+    if (customerId) return customerId;
+
+    const name = (customerName ?? '').trim();
+    const phone = customerPhone.trim() || null;
+    if (!name && !phone) return null;
+
+    const res = await fetch(`${apiUrl}/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: name || phone, phone }),
+    });
+
+    if (!res.ok) return null;
+
+    const body = await res.json();
+    const newId: string = body.customer?.id;
+
+    // Link customer to the conversation if applicable
+    if (newId && conversationId) {
+      await supabase
+        .from('conversations')
+        .update({ customer_id: newId, customer_name: name || phone })
+        .eq('id', conversationId);
+    }
+
+    return newId ?? null;
+  }
+
   const handleSave = async () => {
-    if (!(customerName ?? '').trim()) { setError('Le nom du client est obligatoire.'); return; }
+    const name = (customerName ?? '').trim();
+    const phone = customerPhone.trim();
+
+    if (!name && !phone && !customerId) {
+      setError('Le nom ou le numéro du client est obligatoire.');
+      return;
+    }
     if (items.length === 0) { setError('Ajoutez au moins un produit.'); return; }
     setError(null);
     setIsSaving(true);
+
     try {
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
       const { data: { session } } = await supabase.auth.getSession();
       if (!apiUrl || !session) throw new Error('not_ready');
 
+      const resolvedCustomerId = await ensureCustomer(apiUrl, session.access_token);
+
       const res = await fetch(`${apiUrl}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          customerName: (customerName ?? '').trim(),
-          customerId: customerId || null,
+          customerName: name || phone || 'Client',
+          customerId: resolvedCustomerId,
           conversationId: conversationId ?? null,
           deliveryAddress: deliveryAddress.trim() || null,
           deliveryFee: parsedDeliveryFee,
@@ -168,11 +222,11 @@ export default function NewOrderScreen() {
   };
 
   const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()),
+    (p.name ?? '').toLowerCase().includes(search.toLowerCase()),
   );
 
   const filteredCustomers = customers.filter((c) =>
-    (c.full_name ?? '').toLowerCase().includes(customerSearch.toLowerCase()) ||
+    (c.name ?? '').toLowerCase().includes(customerSearch.toLowerCase()) ||
     (c.phone ?? '').includes(customerSearch),
   );
 
@@ -205,32 +259,43 @@ export default function NewOrderScreen() {
 
             {/* Client */}
             <View style={styles.card}>
-              <Text style={styles.sectionLabel}>CLIENT *</Text>
+              <Text style={styles.sectionLabel}>CLIENT</Text>
+
+              {/* Nom */}
               <View style={styles.customerRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={[styles.input, { flex: 1 }, isWhatsApp && styles.inputReadOnly]}
                   value={customerName}
                   onChangeText={(v) => { setCustomerName(v); setCustomerId(''); }}
                   placeholder="Nom du client"
                   placeholderTextColor="#94A3B8"
-                  editable={!conversationId}
+                  editable={!isWhatsApp}
                 />
-                {!conversationId ? (
+                {/* Picker : disponible pour Facebook et Manuel, pas WhatsApp */}
+                {!isWhatsApp ? (
                   <Pressable
                     style={styles.pickCustomerBtn}
-                    onPress={() => {
-                      fetchCustomers();
-                      setShowCustomerPicker(true);
-                    }}
+                    onPress={() => { fetchCustomers(); setShowCustomerPicker(true); }}
                   >
                     <Feather name="users" size={16} color="#6366F1" />
                   </Pressable>
                 ) : null}
               </View>
+
+              {/* Téléphone : uniquement si pas WhatsApp */}
+              {!isWhatsApp ? (
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  value={customerPhone}
+                  onChangeText={setCustomerPhone}
+                  placeholder="Numéro (optionnel)"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                />
+              ) : null}
+
               {customerId ? (
-                <Text style={styles.customerLinkedText}>
-                  <Feather name="check-circle" size={11} color="#059669" /> Client lié
-                </Text>
+                <Text style={styles.customerLinkedText}>✓ Client existant lié</Text>
               ) : null}
             </View>
 
@@ -334,10 +399,7 @@ export default function NewOrderScreen() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-
-            {isLoadingProducts && (
-              <ActivityIndicator color="#6366F1" style={{ marginTop: 20 }} />
-            )}
+            {isLoadingProducts && <ActivityIndicator color="#6366F1" style={{ marginTop: 20 }} />}
           </View>
         }
         renderItem={({ item }) => {
@@ -368,9 +430,7 @@ export default function NewOrderScreen() {
           );
         }}
         ListEmptyComponent={
-          !isLoadingProducts ? (
-            <Text style={styles.emptyText}>Aucun produit trouvé.</Text>
-          ) : null
+          !isLoadingProducts ? <Text style={styles.emptyText}>Aucun produit trouvé.</Text> : null
         }
         contentContainerStyle={styles.list}
       />
@@ -404,14 +464,15 @@ export default function NewOrderScreen() {
                   key={c.id}
                   style={styles.customerPickerRow}
                   onPress={() => {
-                    setCustomerName(c.full_name ?? c.phone ?? '');
+                    setCustomerName(c.name ?? c.phone ?? '');
+                    setCustomerPhone(c.phone ?? '');
                     setCustomerId(c.id);
                     setShowCustomerPicker(false);
                     setCustomerSearch('');
                   }}
                 >
-                  <Text style={styles.customerPickerName}>{c.full_name ?? c.phone ?? 'Client'}</Text>
-                  {c.phone && c.full_name ? <Text style={styles.customerPickerPhone}>{c.phone}</Text> : null}
+                  <Text style={styles.customerPickerName}>{customerLabel(c)}</Text>
+                  {c.phone && c.name ? <Text style={styles.customerPickerPhone}>{c.phone}</Text> : null}
                 </Pressable>
               ))}
               {filteredCustomers.length === 0 ? (
@@ -441,6 +502,7 @@ const styles = StyleSheet.create({
   pickCustomerBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
   customerLinkedText: { fontSize: 11, color: '#059669', marginTop: 6 },
   input:        { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC' },
+  inputReadOnly: { backgroundColor: '#F1F5F9', color: '#64748B' },
   textArea:     { minHeight: 60, textAlignVertical: 'top', marginBottom: 12 },
   feesRow:      { flexDirection: 'row', gap: 12 },
   feeBlock:     { flex: 1 },
@@ -473,7 +535,6 @@ const styles = StyleSheet.create({
   inCartText:   { fontSize: 13, fontWeight: '700', color: '#6366F1' },
   outOfStockText: { fontSize: 12, color: '#94A3B8' },
   emptyText:    { textAlign: 'center', color: '#94A3B8', fontSize: 13, marginTop: 20 },
-  // Customer picker modal
   modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60, paddingHorizontal: 16 },
   modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   modalTitle:   { fontSize: 18, fontWeight: '800', color: '#0F172A' },
