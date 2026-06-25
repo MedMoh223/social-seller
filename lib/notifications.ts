@@ -10,8 +10,8 @@ import { supabase } from './supabase';
 // server-side from auth.uid()/current_tenant_id(), so this call can't
 // register a token under the wrong tenant even if it tried to.
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  console.log('[Push] step 1 — isDevice:', Device.isDevice);
   if (!Device.isDevice) {
-    // Push tokens aren't issued on simulators/emulators.
     return null;
   }
 
@@ -24,23 +24,24 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
   const existing = await Notifications.getPermissionsAsync();
   let granted = existing.granted;
+  console.log('[Push] step 2 — permission existante:', granted);
 
   if (!granted) {
     const requested = await Notifications.requestPermissionsAsync();
     granted = requested.granted;
+    console.log('[Push] step 2b — après demande:', granted);
   }
 
   if (!granted) {
+    console.log('[Push] step 2 STOP — permission refusée');
     return null;
   }
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  console.log('[Push] step 3 — projectId:', projectId);
 
   if (!projectId) {
-    // No EAS project configured yet (no extra.eas.projectId in
-    // app.json / no eas.json) — getExpoPushTokenAsync needs one. This
-    // is a deployment prerequisite (run `eas init`), not a runtime bug:
-    // skip quietly rather than throwing.
+    console.log('[Push] step 3 STOP — projectId introuvable dans Constants');
     return null;
   }
 
@@ -49,24 +50,31 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   try {
     const result = await Notifications.getExpoPushTokenAsync({ projectId });
     token = result.data;
-  } catch {
+    console.log('[Push] step 4 — token obtenu:', token.slice(0, 40) + '...');
+  } catch (e) {
+    console.warn('[Push] step 4 STOP — getExpoPushTokenAsync a échoué:', e);
     return null;
   }
 
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  console.log('[Push] step 5 — session user:', session?.user?.id ?? 'AUCUNE SESSION');
 
   if (!session) {
+    console.log('[Push] step 5 STOP — pas de session, token non enregistré');
     return token;
   }
 
-  try {
-    await supabase.from('push_tokens').upsert({ token, platform: Platform.OS }, { onConflict: 'token' });
-  } catch {
-    // Best-effort: e.g. a device previously registered under a
-    // different account on this tenant's "own tokens only" RLS policy.
-    // Push registration must never block app usage.
+  // Supabase JS never throws — errors live in { error }, not as exceptions.
+  const { error } = await supabase
+    .from('push_tokens')
+    .upsert({ token, platform: Platform.OS }, { onConflict: 'token' });
+
+  if (error) {
+    console.warn('[Push] step 6 STOP — upsert failed:', error.message, error.details ?? error.hint);
+  } else {
+    console.log('[Push] step 6 ✅ — token enregistré en base');
   }
 
   return token;
