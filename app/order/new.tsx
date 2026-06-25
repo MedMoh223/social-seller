@@ -148,10 +148,30 @@ export default function NewOrderScreen() {
     const phone = customerPhone.trim() || null;
     if (!name && !phone) return null;
 
+    // For platform conversations, grab the current customer_id (= platform sender ID / PSID)
+    // so we can store it as external_id on the customer for future conversation matching.
+    let platformSenderId: string | null = null;
+    if (conversationId) {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('customer_id')
+        .eq('id', conversationId)
+        .maybeSingle();
+      platformSenderId = conv?.customer_id ?? null;
+    }
+
+    const source = (platform as 'whatsapp' | 'facebook' | 'tiktok' | 'manual' | undefined) ?? 'manual';
+
     const res = await fetch(`${apiUrl}/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: name || phone, phone }),
+      body: JSON.stringify({
+        name: name || phone,
+        phone,
+        source,
+        // store the platform sender ID so conversation lookups work by external_id
+        external_id: platformSenderId ?? undefined,
+      }),
     });
 
     if (!res.ok) return null;
@@ -159,7 +179,7 @@ export default function NewOrderScreen() {
     const body = await res.json();
     const newId: string = body.customer?.id;
 
-    // Link customer to the conversation if applicable
+    // Update conversation: replace platform sender ID with customer UUID + name
     if (newId && conversationId) {
       await supabase
         .from('conversations')

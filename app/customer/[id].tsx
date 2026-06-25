@@ -95,27 +95,38 @@ export default function CustomerScreen() {
     setCustomer(c);
     setForm({ name: c.name, phone: c.phone ?? '', email: c.email ?? '', notes: c.notes ?? '' });
 
-    // Fetch linked conversations (match by external_id or customer_fk_id)
-    if (c.external_id) {
-      const { data } = await supabase
-        .from('conversations')
-        .select('id, platform, customer_name, updated_at')
-        .eq('customer_id', c.external_id)
-        .is('deleted_at', null)
-        .order('updated_at', { ascending: false })
-        .limit(20);
-      setConversations((data as ConversationRow[]) ?? []);
-    } else {
-      // Fall back to customer_fk_id link
-      const { data } = await supabase
-        .from('conversations')
-        .select('id, platform, customer_name, updated_at')
-        .eq('customer_id', id)
-        .is('deleted_at', null)
-        .order('updated_at', { ascending: false })
-        .limit(20);
-      setConversations((data as ConversationRow[]) ?? []);
+    // Fetch linked conversations:
+    // - by customer UUID (set after merchant links a customer from order form)
+    // - by external_id (platform sender ID: phone for WhatsApp, PSID for Facebook)
+    // Both can coexist; merge and deduplicate.
+    const byUuid = await supabase
+      .from('conversations')
+      .select('id, platform, customer_name, updated_at')
+      .eq('customer_id', id)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    const byExternalId = c.external_id
+      ? await supabase
+          .from('conversations')
+          .select('id, platform, customer_name, updated_at')
+          .eq('customer_id', c.external_id)
+          .is('deleted_at', null)
+          .order('updated_at', { ascending: false })
+          .limit(20)
+      : { data: [] };
+
+    const seen = new Set<string>();
+    const merged: ConversationRow[] = [];
+    for (const row of [...(byUuid.data ?? []), ...(byExternalId.data ?? [])]) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        merged.push(row as ConversationRow);
+      }
     }
+    merged.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    setConversations(merged);
 
     setIsLoading(false);
   }, [id]);
