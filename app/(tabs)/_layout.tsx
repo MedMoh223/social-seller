@@ -19,21 +19,19 @@ export default function TabsLayout() {
     let ordersChannel: ReturnType<typeof supabase.channel> | null = null;
 
     async function loadUnread() {
-      const { data } = await supabase
-        .from('conversations')
-        .select('unread_count')
-        .gt('unread_count', 0)
-        .is('deleted_at', null);
-      const total = (data ?? []).reduce((sum, row) => sum + (row.unread_count ?? 0), 0);
-      setUnreadCount(total);
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('direction', 'inbound')
+        .eq('is_read', false);
+      setUnreadCount(count ?? 0);
     }
 
     async function loadActiveOrders() {
       const { count } = await supabase
         .from('orders')
         .select('id', { count: 'exact', head: true })
-        .not('status', 'in', `(${ORDERS_DONE_STATUSES.join(',')})`)
-        .is('deleted_at', null);
+        .not('status', 'in', `(${ORDERS_DONE_STATUSES.join(',')})`);
       setActiveOrdersCount(count ?? 0);
     }
 
@@ -42,7 +40,7 @@ export default function TabsLayout() {
 
     convChannel = supabase
       .channel('unread-badge')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, loadUnread)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, loadUnread)
       .subscribe();
 
     ordersChannel = supabase

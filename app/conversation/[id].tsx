@@ -29,6 +29,7 @@ interface ConversationInfo {
   platform: string;
   customer_name: string | null;
   customer_id: string | null;
+  status: string;
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -59,6 +60,8 @@ export default function ConversationScreen() {
   const [draftText, setDraftText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [isResolved, setIsResolved] = useState(false);
+  const [isResolvingStatus, setIsResolvingStatus] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveForm, setSaveForm] = useState({ name: '', phone: '' });
   const [isSavingClient, setIsSavingClient] = useState(false);
@@ -74,7 +77,7 @@ export default function ConversationScreen() {
       const { data: { session } } = await supabase.auth.getSession();
 
       const [{ data: conversationData }, { data: messageData }] = await Promise.all([
-        supabase.from('conversations').select('platform, customer_name, customer_id').eq('id', id).single(),
+        supabase.from('conversations').select('platform, customer_name, customer_id, status').eq('id', id).single(),
         supabase
           .from('messages')
           .select('id, direction, content, delivery_status, created_at')
@@ -85,6 +88,7 @@ export default function ConversationScreen() {
       if (!isMounted) return;
 
       setConversation(conversationData ?? null);
+      setIsResolved(conversationData?.status === 'resolved');
       setMessages(messageData ?? []);
       setIsLoading(false);
 
@@ -223,12 +227,40 @@ export default function ConversationScreen() {
         ),
       );
     } catch {
-      setSendError("Échec de l'envoi. Réessayez.");
+      setSendError(null);
       setMessages((current) =>
         current.map((item) => (item.id === tempId ? { ...item, delivery_status: 'failed' } : item)),
       );
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleRetry = (failedContent: string, failedId: string) => {
+    setMessages((current) => current.filter((item) => item.id !== failedId));
+    setDraftText(failedContent);
+  };
+
+  const handleToggleResolved = async () => {
+    if (!id || isResolvingStatus) return;
+    setIsResolvingStatus(true);
+    const newStatus = isResolved ? 'in_progress' : 'resolved';
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!apiUrl || !session) return;
+
+      const res = await fetch(`${apiUrl}/conversations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) setIsResolved(newStatus === 'resolved');
+    } catch {
+      // silencieux — pas critique
+    } finally {
+      setIsResolvingStatus(false);
     }
   };
 
@@ -319,6 +351,19 @@ export default function ConversationScreen() {
         {conversation && (
           <Pressable
             style={styles.saveClientBtn}
+            onPress={handleToggleResolved}
+            disabled={isResolvingStatus}
+          >
+            <Feather
+              name={isResolved ? 'check-circle' : 'circle'}
+              size={18}
+              color={isResolved ? '#10B981' : '#94A3B8'}
+            />
+          </Pressable>
+        )}
+        {conversation && (
+          <Pressable
+            style={styles.saveClientBtn}
             onPress={() =>
               router.push({
                 pathname: '/order/new',
@@ -397,9 +442,14 @@ export default function ConversationScreen() {
             const isOutbound = item.direction === 'outbound';
             const deliveryIcon = item.delivery_status ? DELIVERY_ICONS[item.delivery_status] : null;
 
+            const isFailed = item.delivery_status === 'failed';
+
             return (
               <View style={[styles.bubbleRow, isOutbound ? styles.bubbleRowOutbound : null]}>
-                <View style={[styles.bubble, isOutbound ? styles.outboundBubble : styles.inboundBubble]}>
+                <Pressable
+                  style={[styles.bubble, isOutbound ? styles.outboundBubble : styles.inboundBubble]}
+                  onPress={isFailed ? () => handleRetry(item.content, item.id) : undefined}
+                >
                   <Text style={isOutbound ? styles.outboundText : styles.inboundText}>{item.content}</Text>
                   <View style={styles.bubbleFooter}>
                     <Text style={isOutbound ? styles.outboundMeta : styles.inboundMeta}>
@@ -409,12 +459,15 @@ export default function ConversationScreen() {
                       <Feather
                         name={deliveryIcon}
                         size={12}
-                        color={item.delivery_status === 'failed' ? '#FCA5A5' : '#C7D2FE'}
+                        color={isFailed ? '#FCA5A5' : '#C7D2FE'}
                         style={styles.deliveryIcon}
                       />
                     ) : null}
                   </View>
-                </View>
+                  {isFailed ? (
+                    <Text style={styles.retryLabel}>Appuyer pour réessayer</Text>
+                  ) : null}
+                </Pressable>
               </View>
             );
           }}
@@ -521,4 +574,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendButtonDisabled: { backgroundColor: '#E2E8F0' },
+  retryLabel: { fontSize: 11, color: '#FCA5A5', marginTop: 4 },
 });

@@ -1,10 +1,21 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 type Platform = 'whatsapp' | 'facebook' | 'tiktok';
+type PlatformFilter = 'all' | Platform;
 
 interface ConversationRow {
   id: string;
@@ -39,6 +50,12 @@ const PLATFORM_COLORS: Record<Platform, string> = {
   whatsapp: '#10B981',
   facebook: '#1877F2',
   tiktok: '#000000',
+};
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
 };
 
 function truncate(text: string, maxLength: number): string {
@@ -99,6 +116,9 @@ export default function InboxScreen() {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     const { data: convData } = await supabase
@@ -139,8 +159,6 @@ export default function InboxScreen() {
   useEffect(() => {
     fetchConversations().finally(() => setIsLoading(false));
 
-    // Realtime: re-fetch whenever a new message arrives so the inbox
-    // updates without requiring an app restart or manual pull-to-refresh.
     const channel = supabase
       .channel('inbox-messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
@@ -162,6 +180,86 @@ export default function InboxScreen() {
     setIsRefreshing(false);
   };
 
+  // Filtrage client-side
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return conversations.filter((item) => {
+      if (platformFilter !== 'all' && item.platform !== platformFilter) return false;
+      if (unreadOnly && item.unreadCount === 0) return false;
+      if (q) {
+        const name = (item.customer_name || item.customer_id || '').toLowerCase();
+        const preview = (item.lastMessage || '').toLowerCase();
+        if (!name.includes(q) && !preview.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [conversations, searchQuery, platformFilter, unreadOnly]);
+
+  const activePlatforms = useMemo(() => {
+    const platforms = new Set(conversations.map((c) => c.platform as Platform));
+    return Array.from(platforms);
+  }, [conversations]);
+
+  const hasActiveFilters = searchQuery.trim() !== '' || platformFilter !== 'all' || unreadOnly;
+
+  const ListHeader = (
+    <View>
+      <Text style={styles.title}>Inbox</Text>
+
+      {/* Barre de recherche */}
+      <View style={styles.searchBar}>
+        <Feather name="search" size={16} color="#94A3B8" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher un client ou message…"
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')}>
+            <Feather name="x" size={16} color="#94A3B8" />
+          </Pressable>
+        )}
+      </View>
+
+      {/* Chips filtres */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow} contentContainerStyle={styles.filtersContent}>
+        {/* Non lus */}
+        <Pressable
+          style={[styles.chip, unreadOnly && styles.chipActive]}
+          onPress={() => setUnreadOnly((v) => !v)}
+        >
+          <Feather name="mail" size={12} color={unreadOnly ? '#FFFFFF' : '#64748B'} style={styles.chipIcon} />
+          <Text style={[styles.chipText, unreadOnly && styles.chipTextActive]}>Non lus</Text>
+        </Pressable>
+
+        {/* Plateforme : Tous */}
+        <Pressable
+          style={[styles.chip, platformFilter === 'all' && styles.chipActive]}
+          onPress={() => setPlatformFilter('all')}
+        >
+          <Text style={[styles.chipText, platformFilter === 'all' && styles.chipTextActive]}>Tous</Text>
+        </Pressable>
+
+        {/* Chips par plateforme détectée */}
+        {activePlatforms.map((p) => (
+          <Pressable
+            key={p}
+            style={[styles.chip, platformFilter === p && styles.chipActive, platformFilter === p && { backgroundColor: PLATFORM_COLORS[p] }]}
+            onPress={() => setPlatformFilter(platformFilter === p ? 'all' : p)}
+          >
+            <Feather name={PLATFORM_ICONS[p]} size={12} color={platformFilter === p ? '#FFFFFF' : '#64748B'} style={styles.chipIcon} />
+            <Text style={[styles.chipText, platformFilter === p && styles.chipTextActive]}>{PLATFORM_LABELS[p]}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
   if (isLoading) {
     return (
       <View style={styles.listContent}>
@@ -176,18 +274,23 @@ export default function InboxScreen() {
   return (
     <FlatList
       contentContainerStyle={styles.listContent}
-      data={conversations}
+      data={filteredConversations}
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
-      ListHeaderComponent={<Text style={styles.title}>Inbox</Text>}
+      ListHeaderComponent={ListHeader}
+      keyboardShouldPersistTaps="handled"
       ListEmptyComponent={
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="inbox" size={28} color="#94A3B8" />
+            <Feather name={hasActiveFilters ? 'filter' : 'inbox'} size={28} color="#94A3B8" />
           </View>
-          <Text style={styles.emptyTitle}>Aucune conversation</Text>
+          <Text style={styles.emptyTitle}>
+            {hasActiveFilters ? 'Aucun résultat' : 'Aucune conversation'}
+          </Text>
           <Text style={styles.emptySubtitle}>
-            Connectez un canal pour commencer à recevoir des messages de vos clients.
+            {hasActiveFilters
+              ? 'Essayez de modifier vos filtres.'
+              : 'Connectez un canal pour commencer à recevoir des messages de vos clients.'}
           </Text>
         </View>
       }
@@ -228,7 +331,40 @@ export default function InboxScreen() {
 
 const styles = StyleSheet.create({
   listContent: { flexGrow: 1, backgroundColor: '#F8FAFC', padding: 16 },
-  title: { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 12 },
+
+  // Recherche
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: '#0F172A' },
+
+  // Chips
+  filtersRow: { marginBottom: 14 },
+  filtersContent: { gap: 8, paddingRight: 4 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  chipActive: { backgroundColor: '#6366F1' },
+  chipIcon: { marginRight: 4 },
+  chipText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
+  chipTextActive: { color: '#FFFFFF' },
+
+  // Empty state
   emptyState: { alignItems: 'center', paddingTop: 64, paddingHorizontal: 32 },
   emptyIcon: {
     width: 64,
@@ -241,6 +377,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 6 },
   emptySubtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 18 },
+
+  // Rows
   row: {
     flexDirection: 'row',
     alignItems: 'center',

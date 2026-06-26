@@ -34,7 +34,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-font',
     'expo-web-browser',
     'expo-notifications',
+    'expo-updates',
   ],
+  updates: {
+    url: 'https://u.expo.dev/022930f8-8d39-4233-8434-be915a87b656',
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   extra: {
     router: {},
     eas: {
