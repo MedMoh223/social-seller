@@ -1,10 +1,15 @@
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { registerForPushNotificationsAsync } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+
+// Ferme automatiquement le Chrome Custom Tab Android après le redirect OAuth.
+// Sans cet appel, l'utilisateur reste bloqué sur un écran gris après connexion.
+WebBrowser.maybeCompleteAuthSession();
 
 // Controls how notifications are handled in foreground and background.
 Notifications.setNotificationHandler({

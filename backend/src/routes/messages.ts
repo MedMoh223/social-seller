@@ -84,7 +84,7 @@ messagesRouter.post('/:id/messages', async (req, res, next) => {
       return;
     }
 
-    const { data: connection, error: connectionError } = await supabaseAdmin
+    let { data: connection, error: connectionError } = await supabaseAdmin
       .from('social_connections')
       .select('id, platform, access_token_enc, metadata')
       .eq('id', conversation.social_connection_id)
@@ -93,6 +93,22 @@ messagesRouter.post('/:id/messages', async (req, res, next) => {
       .maybeSingle();
 
     if (connectionError) throw connectionError;
+
+    // Fallback : si la connexion originale est déconnectée (ex. après
+    // une déconnexion/reconnexion qui crée un nouvel enregistrement),
+    // on cherche toute connexion active du même tenant+platform.
+    if (!connection && conversation.platform) {
+      const { data: fallback, error: fallbackError } = await supabaseAdmin
+        .from('social_connections')
+        .select('id, platform, access_token_enc, metadata')
+        .eq('tenant_id', req.user!.tenantId)
+        .eq('platform', conversation.platform)
+        .is('disconnected_at', null)
+        .maybeSingle();
+
+      if (fallbackError) throw fallbackError;
+      connection = fallback;
+    }
 
     if (!connection) {
       next(new ConflictError('Le canal de cette conversation est déconnecté.'));
