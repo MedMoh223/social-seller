@@ -18,12 +18,23 @@ export async function sendPushNotification(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  conversationId?: string,
 ): Promise<void> {
   try {
+    const payload: Record<string, unknown> = { to: token, title, body, data };
+
+    if (conversationId) {
+      // Android : remplace les notifs précédentes de la même conversation
+      // au lieu d'en empiler plusieurs dans le tiroir
+      payload.android = { tag: conversationId };
+      // iOS : regroupe les notifs de la même conversation dans le centre de notifs
+      payload.threadId = conversationId;
+    }
+
     const response = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ to: token, title, body, data }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -70,6 +81,6 @@ export async function notifyTenantNewMessage(
 
   logger.info({ tenantId, tokenCount: (tokens ?? []).length }, 'notifying tenant');
   await Promise.all(
-    (tokens ?? []).map((row) => sendPushNotification(row.token, title, body, data)),
+    (tokens ?? []).map((row) => sendPushNotification(row.token, title, body, data, conversationId)),
   );
 }
