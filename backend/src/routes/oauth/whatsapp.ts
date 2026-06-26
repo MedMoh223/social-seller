@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { env } from '../../config/env';
 import { consumeOAuthState } from '../../services/oauthStateService';
-import { exchangeCodeForToken, graphGet } from '../../services/metaGraphClient';
+import { exchangeCodeForToken, exchangeForLongLivedToken, graphGet } from '../../services/metaGraphClient';
 import { upsertConnection } from '../../services/connectionsService';
 import { recordAuditLog } from '../../services/auditLogService';
 import { ConflictError } from '../../lib/httpErrors';
@@ -57,11 +57,18 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
 
   try {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
-    const tokenResponse = await exchangeCodeForToken({ code, redirectUri });
+    const shortLived = await exchangeCodeForToken({ code, redirectUri });
+
+    // Exchange immediately for a long-lived token (~60 days) so we don't
+    // store the short-lived code-exchange token (expires in ~1 hour).
+    const longLived = await exchangeForLongLivedToken(shortLived.access_token);
+    const tokenExpiresAt = longLived.expires_in
+      ? new Date(Date.now() + longLived.expires_in * 1000).toISOString()
+      : null;
 
     // Discover the WABA via the user's Business Manager.
     // Requires business_management scope (now included in the authorization URL).
-    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', tokenResponse.access_token);
+    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', longLived.access_token);
     const business = businesses.data[0];
 
     if (!business) {
@@ -71,7 +78,7 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
 
     const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
       `/${business.id}/owned_whatsapp_business_accounts`,
-      tokenResponse.access_token,
+      longLived.access_token,
     );
     const waba = wabas.data[0];
 
@@ -82,7 +89,7 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
 
     const phoneNumbers = await graphGet<{
       data: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-    }>(`/${waba.id}/phone_numbers`, tokenResponse.access_token);
+    }>(`/${waba.id}/phone_numbers`, longLived.access_token);
     const phoneNumber = phoneNumbers.data[0];
 
     if (!phoneNumber) {
@@ -97,7 +104,8 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
       externalAccountId: phoneNumber.id,
       wabaId: waba.id,
       displayName: phoneNumber.verified_name || phoneNumber.display_phone_number,
-      accessToken: tokenResponse.access_token,
+      accessToken: longLived.access_token,
+      tokenExpiresAt,
       metadata: {
         display_phone_number: phoneNumber.display_phone_number,
         phone_number_id: phoneNumber.id,

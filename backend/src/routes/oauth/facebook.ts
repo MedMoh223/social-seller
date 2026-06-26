@@ -73,9 +73,10 @@ facebookOAuthRouter.get('/callback', async (req, res) => {
       externalAccountId: page.id,
       displayName: page.name,
       accessToken: page.access_token,
-      tokenExpiresAt: longLived.expires_in
-        ? new Date(Date.now() + longLived.expires_in * 1000).toISOString()
-        : null,
+      // Page access tokens derived from a long-lived user token have no
+      // expiration — storing null prevents the refresh job from treating
+      // them as expiring (they don't, unless the user revokes app access).
+      tokenExpiresAt: null,
     });
 
     await recordAuditLog({

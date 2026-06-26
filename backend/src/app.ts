@@ -18,6 +18,7 @@ import { whatsappOAuthRouter } from './routes/oauth/whatsapp';
 import { facebookWebhookRouter } from './routes/webhooks/facebook';
 import { tiktokWebhookRouter } from './routes/webhooks/tiktok';
 import { whatsappWebhookRouter } from './routes/webhooks/whatsapp';
+import { tokenRefreshRouter } from './routes/internal/tokenRefresh';
 
 export function createApp() {
   const app = express();
@@ -64,6 +65,7 @@ export function createApp() {
   app.use('/oauth/facebook', facebookOAuthRouter);
   app.use('/oauth/whatsapp', whatsappOAuthRouter);
   app.use('/oauth/tiktok', tiktokOAuthRouter);
+  app.use('/internal/token-refresh', tokenRefreshRouter);
 
   app.use(errorHandler);
 

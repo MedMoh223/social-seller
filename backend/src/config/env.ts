@@ -38,6 +38,10 @@ const envSchema = z.object({
 
   TIKTOK_CLIENT_KEY: z.string().min(1).optional(),
   TIKTOK_CLIENT_SECRET: z.string().min(1).optional(),
+
+  // Secret used by the Railway cron job to call POST /internal/token-refresh.
+  // Optional — if absent the endpoint returns 401 for all callers.
+  INTERNAL_CRON_SECRET: z.string().min(1).optional(),
 });
 
 function loadEnv() {
