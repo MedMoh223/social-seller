@@ -59,20 +59,12 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
     const shortLived = await exchangeCodeForToken({ code, redirectUri });
 
-    // Discover the WABA using the short-lived token — it retains the
-    // business_management scope needed for Business Manager API calls.
-    // We exchange for a long-lived token only at the end, just before
-    // storage, so the discovery calls are never affected.
-    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', shortLived.access_token);
-    const business = businesses.data[0];
-
-    if (!business) {
-      redirectToApp(res, 'error', 'no_business');
-      return;
-    }
-
+    // Discover the WABA directly via whatsapp_business_management scope —
+    // this avoids the Business Manager route (owned_whatsapp_business_accounts)
+    // which requires the app to be registered as a System User in the BM
+    // and fails with 403 when that setup is absent.
     const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
-      `/${business.id}/owned_whatsapp_business_accounts`,
+      '/me/whatsapp_business_accounts',
       shortLived.access_token,
     );
     const waba = wabas.data[0];
