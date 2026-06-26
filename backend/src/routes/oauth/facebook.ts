@@ -16,20 +16,12 @@ function redirectToApp(res: Response, status: 'success' | 'error', reason?: stri
   if (reason) params.set('reason', reason);
   const deepLink = `socialseller://oauth-${status}?${params.toString()}`;
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Connexion ${status === 'success' ? 'réussie' : 'échouée'}</title>
-    <meta http-equiv="refresh" content="0;url=${deepLink}" />
-    <script>window.location.href = "${deepLink}";</script>
-  </head>
-  <body>
-    <p>${status === 'success' ? 'Connexion réussie. Retour à l\'application…' : 'Connexion échouée. Retour à l\'application…'}</p>
-    <a href="${deepLink}">Retourner à l'application</a>
-  </body>
-</html>`);
+  // expo-web-browser's openAuthSessionAsync intercepts HTTP 302 redirects to
+  // the registered custom scheme and closes the Chrome Custom Tab cleanly —
+  // no grey screen, no hanging activity. The HTML+window.location approach
+  // dispatches an Android intent from JavaScript which can spawn a new
+  // activity and leave the Custom Tab open (grey screen).
+  res.redirect(302, deepLink);
 }
 
 facebookOAuthRouter.get('/callback', async (req, res) => {
