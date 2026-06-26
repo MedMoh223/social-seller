@@ -8,12 +8,9 @@ const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 // dialog returns a GraphMethodException "Object with ID 'dialog' does
 // not exist" (error code 100, subcode 33).
 const FACEBOOK_OAUTH_BASE = 'https://www.facebook.com/v21.0';
-// Send API calls pinned to v19.0 per the task spec — kept separate from
-// GRAPH_API_BASE (used for OAuth/discovery) rather than bumping every
-// Graph call to the same version, since only these two endpoints were
-// asked for and Meta's basic messaging endpoints are stable across
-// these minor version gaps.
-const GRAPH_API_MESSAGING_BASE = 'https://graph.facebook.com/v19.0';
+// Messaging calls use the same version as GRAPH_API_BASE — v19.0 was
+// sunset after its 2-year support window (released Jan 2024, expired ~Jan 2026).
+const GRAPH_API_MESSAGING_BASE = 'https://graph.facebook.com/v21.0';
 
 // Shared by both WhatsApp Cloud API and the Facebook Messenger Platform:
 // both sign webhook deliveries the same way (HMAC-SHA256 over the raw
