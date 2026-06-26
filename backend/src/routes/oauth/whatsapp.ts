@@ -59,16 +59,11 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
     const shortLived = await exchangeCodeForToken({ code, redirectUri });
 
-    // Exchange immediately for a long-lived token (~60 days) so we don't
-    // store the short-lived code-exchange token (expires in ~1 hour).
-    const longLived = await exchangeForLongLivedToken(shortLived.access_token);
-    const tokenExpiresAt = longLived.expires_in
-      ? new Date(Date.now() + longLived.expires_in * 1000).toISOString()
-      : null;
-
-    // Discover the WABA via the user's Business Manager.
-    // Requires business_management scope (now included in the authorization URL).
-    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', longLived.access_token);
+    // Discover the WABA using the short-lived token — it retains the
+    // business_management scope needed for Business Manager API calls.
+    // We exchange for a long-lived token only at the end, just before
+    // storage, so the discovery calls are never affected.
+    const businesses = await graphGet<{ data: Array<{ id: string }> }>('/me/businesses', shortLived.access_token);
     const business = businesses.data[0];
 
     if (!business) {
@@ -78,7 +73,7 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
 
     const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
       `/${business.id}/owned_whatsapp_business_accounts`,
-      longLived.access_token,
+      shortLived.access_token,
     );
     const waba = wabas.data[0];
 
@@ -89,13 +84,20 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
 
     const phoneNumbers = await graphGet<{
       data: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-    }>(`/${waba.id}/phone_numbers`, longLived.access_token);
+    }>(`/${waba.id}/phone_numbers`, shortLived.access_token);
     const phoneNumber = phoneNumbers.data[0];
 
     if (!phoneNumber) {
       redirectToApp(res, 'error', 'no_phone_number');
       return;
     }
+
+    // Exchange for long-lived token (~60 days) only now, after discovery
+    // is complete. This is what gets stored and used for sending messages.
+    const longLived = await exchangeForLongLivedToken(shortLived.access_token);
+    const tokenExpiresAt = longLived.expires_in
+      ? new Date(Date.now() + longLived.expires_in * 1000).toISOString()
+      : null;
 
     const connection = await upsertConnection({
       tenantId: consumed.tenantId,
