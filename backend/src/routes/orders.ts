@@ -5,6 +5,60 @@ import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { ConflictError, NotFoundError, ValidationError } from '../lib/httpErrors';
 import { logger } from '../lib/logger';
+import { decryptToken } from '../lib/tokenCrypto';
+import { sendWhatsAppMessage, sendFacebookMessage } from '../services/metaGraphClient';
+
+// Messages envoyés au client selon le nouveau statut.
+// Pas de notif pour 'new' (état initial) ni 'preparing' (interne).
+const STATUS_NOTIFICATIONS: Partial<Record<string, string>> = {
+  confirmed: '✅ Votre commande a été confirmée. Nous la préparons bientôt.',
+  shipped: '🚚 Votre commande a été expédiée. Vous la recevrez prochainement.',
+  delivered: '🎉 Votre commande a bien été livrée. Merci pour votre confiance !',
+  cancelled: "❌ Votre commande a été annulée. N'hésitez pas à nous contacter pour plus d'informations.",
+};
+
+async function notifyClientOnStatusChange(
+  conversationId: string,
+  tenantId: string,
+  newStatus: string,
+): Promise<void> {
+  const message = STATUS_NOTIFICATIONS[newStatus];
+  if (!message) return;
+
+  try {
+    const { data: conversation } = await supabaseAdmin
+      .from('conversations')
+      .select('platform, external_thread_id, social_connection_id')
+      .eq('id', conversationId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (!conversation?.social_connection_id || !conversation.external_thread_id) return;
+
+    const { data: connection } = await supabaseAdmin
+      .from('social_connections')
+      .select('platform, access_token_enc, metadata')
+      .eq('id', conversation.social_connection_id)
+      .eq('tenant_id', tenantId)
+      .is('disconnected_at', null)
+      .maybeSingle();
+
+    if (!connection) return;
+
+    const accessToken = decryptToken(connection.access_token_enc as string);
+
+    if (connection.platform === 'whatsapp') {
+      const phoneNumberId = (connection.metadata as Record<string, unknown> | null)?.phone_number_id;
+      if (typeof phoneNumberId !== 'string') return;
+      await sendWhatsAppMessage(phoneNumberId, accessToken, conversation.external_thread_id, message);
+    } else if (connection.platform === 'facebook') {
+      await sendFacebookMessage(accessToken, conversation.external_thread_id, message);
+    }
+  } catch (err) {
+    // Fire-and-forget : on logue sans faire échouer la transition
+    logger.warn({ err, conversationId, newStatus }, 'order status notification failed (non-blocking)');
+  }
+}
 
 export const ordersRouter = Router();
 
@@ -185,6 +239,11 @@ ordersRouter.patch('/:id', async (req, res, next) => {
         return;
       }
       throw error;
+    }
+
+    // Notifier le client si la commande est liée à une conversation (fire-and-forget)
+    if (order.conversation_id) {
+      void notifyClientOnStatusChange(order.conversation_id, req.user!.tenantId, parsed.data.status);
     }
 
     res.status(200).json({ order });

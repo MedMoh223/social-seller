@@ -12,6 +12,43 @@ export const messagesRouter = Router();
 
 messagesRouter.use(requireAuth, authenticatedLimiter);
 
+// ── PATCH /conversations/:id/status ────────────────────────────────────────
+const updateStatusSchema = z.object({
+  status: z.enum(['new', 'in_progress', 'resolved']),
+});
+
+messagesRouter.patch('/:id/status', async (req, res, next) => {
+  const parsed = updateStatusSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    next(new ValidationError('Statut invalide.'));
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .update({ status: parsed.data.status })
+      .eq('id', req.params.id)
+      .eq('tenant_id', req.user!.tenantId)
+      .select('id, status')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      next(new NotFoundError('Conversation introuvable.'));
+      return;
+    }
+
+    res.status(200).json({ conversation: data });
+  } catch (err) {
+    logger.error({ err, conversationId: req.params.id }, 'failed to update conversation status');
+    next(err);
+  }
+});
+
+// ── POST /conversations/:id/messages ───────────────────────────────────────
 const sendMessageSchema = z.object({
   content: z.string().trim().min(1).max(4096),
 });
