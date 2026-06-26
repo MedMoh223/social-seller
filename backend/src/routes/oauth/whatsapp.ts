@@ -59,24 +59,31 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
     const redirectUri = `${env.BACKEND_PUBLIC_URL}${CALLBACK_PATH}`;
     const shortLived = await exchangeCodeForToken({ code, redirectUri });
 
-    // Discover the WABA directly via whatsapp_business_management scope —
-    // this avoids the Business Manager route (owned_whatsapp_business_accounts)
-    // which requires the app to be registered as a System User in the BM
-    // and fails with 403 when that setup is absent.
-    const wabas = await graphGet<{ data: Array<{ id: string; name: string }> }>(
-      '/me/whatsapp_business_accounts',
-      shortLived.access_token,
-    );
-    const waba = wabas.data[0];
+    // Discover the WABA via debug_token + app access token.
+    // This is a server-side call that requires no Business Manager setup
+    // and bypasses all the permission issues on the user-facing endpoints.
+    // The granular_scopes field lists the WABA IDs the user granted access to.
+    const appAccessToken = `${env.META_APP_ID}|${env.META_APP_SECRET}`;
+    const debugPath = `/debug_token?input_token=${encodeURIComponent(shortLived.access_token)}`;
+    const debugInfo = await graphGet<{
+      data: {
+        granular_scopes?: Array<{ scope: string; target_ids?: string[] }>;
+      };
+    }>(debugPath, appAccessToken);
 
-    if (!waba) {
+    const wabaIds = debugInfo.data.granular_scopes
+      ?.find((s) => s.scope === 'whatsapp_business_management')
+      ?.target_ids ?? [];
+    const wabaId = wabaIds[0];
+
+    if (!wabaId) {
       redirectToApp(res, 'error', 'no_waba');
       return;
     }
 
     const phoneNumbers = await graphGet<{
       data: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-    }>(`/${waba.id}/phone_numbers`, shortLived.access_token);
+    }>(`/${wabaId}/phone_numbers`, shortLived.access_token);
     const phoneNumber = phoneNumbers.data[0];
 
     if (!phoneNumber) {
@@ -96,7 +103,7 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
       connectedBy: consumed.userId,
       platform: 'whatsapp',
       externalAccountId: phoneNumber.id,
-      wabaId: waba.id,
+      wabaId,
       displayName: phoneNumber.verified_name || phoneNumber.display_phone_number,
       accessToken: longLived.access_token,
       tokenExpiresAt,
