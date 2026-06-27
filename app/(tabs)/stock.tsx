@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { isOwner } from '../../lib/userRole';
 
 interface ProductRow {
   id: string;
@@ -77,9 +78,11 @@ export default function StockScreen() {
     <View>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Stock</Text>
-        <Pressable style={styles.addButton} onPress={() => router.push('/product/new')}>
-          <Feather name="plus" size={20} color="#FFFFFF" />
-        </Pressable>
+        {isOwner() && (
+          <Pressable style={styles.addButton} onPress={() => router.push('/product/new')}>
+            <Feather name="plus" size={20} color="#FFFFFF" />
+          </Pressable>
+        )}
       </View>
       {products.length > 0 ? (
         <View style={styles.totalsCard}>
@@ -87,7 +90,7 @@ export default function StockScreen() {
             <Text style={styles.totalLabel}>Valeur marché</Text>
             <Text style={styles.totalValue}>{formatAmount(totalMarket)}</Text>
           </View>
-          {totalCost > 0 ? (
+          {isOwner() && totalCost > 0 ? (
             <View style={styles.totalBlock}>
               <Text style={styles.totalLabel}>Valeur coût</Text>
               <Text style={[styles.totalValue, styles.totalValueMuted]}>{formatAmount(totalCost)}</Text>

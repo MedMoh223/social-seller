@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireOwner } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { ValidationError, NotFoundError } from '../lib/httpErrors';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
@@ -32,7 +32,7 @@ const patchSchema = z.object({
 });
 
 // PATCH /tenant — mettre à jour le nom et/ou logo_url
-tenantRouter.patch('/', async (req, res, next) => {
+tenantRouter.patch('/', requireOwner, async (req, res, next) => {
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) return next(new ValidationError());
 

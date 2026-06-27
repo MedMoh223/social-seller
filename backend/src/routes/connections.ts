@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireOwner } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { ValidationError, NotFoundError, NotImplementedError } from '../lib/httpErrors';
 import { createOAuthState } from '../services/oauthStateService';
@@ -25,7 +25,7 @@ connectionsRouter.get('/', async (req, res, next) => {
   }
 });
 
-connectionsRouter.post('/:platform/start', async (req, res, next) => {
+connectionsRouter.post('/:platform/start', requireOwner, async (req, res, next) => {
   const parsedPlatform = platformParamSchema.safeParse(req.params.platform);
 
   if (!parsedPlatform.success) {
@@ -69,7 +69,7 @@ connectionsRouter.post('/:platform/start', async (req, res, next) => {
   }
 });
 
-connectionsRouter.delete('/:id', async (req, res, next) => {
+connectionsRouter.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const disconnected = await disconnectConnection(req.params.id, req.user!.tenantId);
 

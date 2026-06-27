@@ -26,6 +26,23 @@ function phoneToEmail(phone: string): string {
   return `${normalized}${EMAIL_DOMAIN}`;
 }
 
+// ── GET /agents/me ───────────────────────────────────────────────────────────
+agentsRouter.get('/me', async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('id, full_name, phone, role, is_active')
+      .eq('id', req.user!.id)
+      .single();
+
+    if (error) throw error;
+    res.status(200).json({ user: data });
+  } catch (err) {
+    logger.error({ err }, 'failed to get current user');
+    next(err);
+  }
+});
+
 // ── GET /agents ──────────────────────────────────────────────────────────────
 agentsRouter.get('/', async (req, res, next) => {
   try {

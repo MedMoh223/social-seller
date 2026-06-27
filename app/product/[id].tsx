@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { isOwner } from '../../lib/userRole';
 import {
   ActivityIndicator,
   Alert,
@@ -327,10 +328,12 @@ export default function ProductDetailScreen() {
             <Text style={styles.label}>STOCK ACTUEL</Text>
             <Text style={styles.stockValue}>{product.stock_quantity}</Text>
           </View>
-          <Pressable style={styles.adjustButton} onPress={() => setIsStockModalVisible(true)}>
-            <Feather name="sliders" size={14} color="#6366F1" />
-            <Text style={styles.adjustButtonText}>Ajuster le stock</Text>
-          </Pressable>
+          {isOwner() && (
+            <Pressable style={styles.adjustButton} onPress={() => setIsStockModalVisible(true)}>
+              <Feather name="sliders" size={14} color="#6366F1" />
+              <Text style={styles.adjustButtonText}>Ajuster le stock</Text>
+            </Pressable>
+          )}
         </View>
 
         {(product.price > 0 || (product.cost_price ?? 0) > 0) ? (
@@ -353,21 +356,25 @@ export default function ProductDetailScreen() {
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-      <Pressable
-        style={[styles.primaryButton, isSaving && styles.buttonDisabled]}
-        onPress={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Sauvegarder</Text>}
-      </Pressable>
+      {isOwner() && (
+        <>
+          <Pressable
+            style={[styles.primaryButton, isSaving && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Sauvegarder</Text>}
+          </Pressable>
 
-      <Pressable style={styles.dangerButton} onPress={handleArchive} disabled={isArchiving}>
-        {isArchiving ? (
-          <ActivityIndicator color="#DC2626" />
-        ) : (
-          <Text style={styles.dangerButtonText}>Archiver ce produit</Text>
-        )}
-      </Pressable>
+          <Pressable style={styles.dangerButton} onPress={handleArchive} disabled={isArchiving}>
+            {isArchiving ? (
+              <ActivityIndicator color="#DC2626" />
+            ) : (
+              <Text style={styles.dangerButtonText}>Archiver ce produit</Text>
+            )}
+          </Pressable>
+        </>
+      )}
 
       {/* Modal zoom image */}
       <Modal visible={!!zoomedImage} transparent animationType="fade" onRequestClose={() => setZoomedImage(null)}>

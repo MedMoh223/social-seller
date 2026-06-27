@@ -11,17 +11,18 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { isOwner } from '../../lib/userRole';
 
 type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled';
 
 interface DashboardStats {
   messages_today: number;
   orders_today: number;
-  revenue_today: number;
+  revenue_today: number | null; // null pour les agents
   active_conversations: number;
   orders_by_status: Record<OrderStatus, number>;
-  revenue_this_month: number;
-  revenue_last_month: number;
+  revenue_this_month: number | null;
+  revenue_last_month: number | null;
   top_products: { product_id: string; name: string; total_sold: number }[];
   low_stock_count: number;
 }
@@ -114,13 +115,15 @@ export default function DashboardScreen() {
           <Text style={styles.kpiValue}>{s?.orders_today ?? '—'}</Text>
           <Text style={styles.kpiLabel}>Commandes</Text>
         </View>
-        <View style={[styles.kpiCard, { flex: 1 }]}>
-          <Feather name="dollar-sign" size={18} color="#6366F1" />
-          <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
-            {s ? formatAmount(s.revenue_today) : '—'}
-          </Text>
-          <Text style={styles.kpiLabel}>CA livré</Text>
-        </View>
+        {isOwner() && (
+          <View style={[styles.kpiCard, { flex: 1 }]}>
+            <Feather name="dollar-sign" size={18} color="#6366F1" />
+            <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
+              {s ? formatAmount(s.revenue_today ?? 0) : '—'}
+            </Text>
+            <Text style={styles.kpiLabel}>CA livré</Text>
+          </View>
+        )}
       </View>
 
       {/* ── Alertes ── */}
@@ -173,23 +176,27 @@ export default function DashboardScreen() {
         })}
       </View>
 
-      {/* ── Revenus ── */}
-      <Text style={styles.sectionLabel}>REVENUS</Text>
-      <View style={styles.card}>
-        <View style={styles.revRow}>
-          <View>
-            <Text style={styles.revAmount}>{s ? formatAmount(s.revenue_this_month) : '—'}</Text>
-            <Text style={styles.revSubLabel}>Ce mois</Text>
+      {/* ── Revenus (owner uniquement) ── */}
+      {isOwner() && (
+        <>
+          <Text style={styles.sectionLabel}>REVENUS</Text>
+          <View style={styles.card}>
+            <View style={styles.revRow}>
+              <View>
+                <Text style={styles.revAmount}>{s ? formatAmount(s.revenue_this_month ?? 0) : '—'}</Text>
+                <Text style={styles.revSubLabel}>Ce mois</Text>
+              </View>
+              {s ? <RevenueChange thisMonth={s.revenue_this_month ?? 0} lastMonth={s.revenue_last_month ?? 0} /> : null}
+            </View>
+            {s && (s.revenue_last_month ?? 0) > 0 && (
+              <Text style={styles.revLastMonth}>Mois dernier : {formatAmount(s.revenue_last_month ?? 0)}</Text>
+            )}
           </View>
-          {s ? <RevenueChange thisMonth={s.revenue_this_month} lastMonth={s.revenue_last_month} /> : null}
-        </View>
-        {s && s.revenue_last_month > 0 && (
-          <Text style={styles.revLastMonth}>Mois dernier : {formatAmount(s.revenue_last_month)}</Text>
-        )}
-      </View>
+        </>
+      )}
 
-      {/* ── Top produits ── */}
-      {s && s.top_products.length > 0 ? (
+      {/* ── Top produits (owner uniquement) ── */}
+      {isOwner() && s && s.top_products.length > 0 ? (
         <>
           <Text style={styles.sectionLabel}>TOP PRODUITS</Text>
           <View style={styles.card}>

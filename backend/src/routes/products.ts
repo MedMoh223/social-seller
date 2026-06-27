@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireOwner } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { recordAuditLog } from '../services/auditLogService';
@@ -39,7 +39,7 @@ const createProductSchema = z.object({
   imageUrls: z.array(z.string().url()).max(4).default([]),
 });
 
-productsRouter.post('/', async (req, res, next) => {
+productsRouter.post('/', requireOwner, async (req, res, next) => {
   const parsed = createProductSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -81,7 +81,7 @@ const updateProductSchema = z.object({
   imageUrls: z.array(z.string().url()).max(4).optional(),
 });
 
-productsRouter.patch('/:id', async (req, res, next) => {
+productsRouter.patch('/:id', requireOwner, async (req, res, next) => {
   const parsed = updateProductSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -134,7 +134,7 @@ const adjustStockSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
-productsRouter.patch('/:id/stock', async (req, res, next) => {
+productsRouter.patch('/:id/stock', requireOwner, async (req, res, next) => {
   const parsed = adjustStockSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -176,7 +176,7 @@ productsRouter.patch('/:id/stock', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/:id', async (req, res, next) => {
+productsRouter.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const { data: product, error } = await supabaseAdmin
       .from('products')

@@ -137,20 +137,22 @@ statsRouter.get('/', async (req, res, next) => {
 
     const topProducts = (topProductsResult.data ?? []) as TopProductRow[];
 
+    const isOwner = req.user!.role === 'owner';
+
     res.status(200).json({
       messages_today: messagesToday,
       messages_this_week: messagesThisWeek,
       orders_today: ordersToday,
-      revenue_today: revenueToday,
+      revenue_today: isOwner ? revenueToday : null,
       active_conversations: activeConversations,
       orders_by_status: ordersByStatus,
-      revenue_this_month: revenueThisMonth,
-      revenue_last_month: revenueLastMonth,
-      top_products: topProducts.map((row) => ({
+      revenue_this_month: isOwner ? revenueThisMonth : null,
+      revenue_last_month: isOwner ? revenueLastMonth : null,
+      top_products: isOwner ? topProducts.map((row) => ({
         product_id: row.product_id,
         name: row.name,
         total_sold: Number(row.total_sold),
-      })),
+      })) : [],
       low_stock_count: lowStockCount,
     });
   } catch (err) {

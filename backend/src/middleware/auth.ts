@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
-import { UnauthorizedError } from '../lib/httpErrors';
+import { ForbiddenError, UnauthorizedError } from '../lib/httpErrors';
 
 export interface AuthenticatedUser {
   id: string;
@@ -23,6 +23,13 @@ declare global {
 // downstream query must still filter by req.user.tenantId explicitly:
 // service_role bypasses RLS entirely, so this is the only tenant check
 // that applies once a request reaches the backend.
+export function requireOwner(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.role !== 'owner') {
+    return next(new ForbiddenError('Accès réservé au propriétaire de la boutique.'));
+  }
+  next();
+}
+
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;

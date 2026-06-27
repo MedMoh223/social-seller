@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
-import { ConflictError, NotFoundError, ValidationError } from '../lib/httpErrors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/httpErrors';
 import { logger } from '../lib/logger';
 import { decryptToken } from '../lib/tokenCrypto';
 import { sendWhatsAppMessage, sendFacebookMessage } from '../services/metaGraphClient';
@@ -220,6 +220,20 @@ ordersRouter.patch('/:id', async (req, res, next) => {
   }
 
   try {
+    // Un agent ne peut annuler que ses propres commandes
+    if (parsed.data.status === 'cancelled' && req.user!.role !== 'owner') {
+      const { data: existing } = await supabaseAdmin
+        .from('orders')
+        .select('agent_id')
+        .eq('id', req.params.id)
+        .eq('tenant_id', req.user!.tenantId)
+        .maybeSingle();
+
+      if (!existing || existing.agent_id !== req.user!.id) {
+        return next(new ForbiddenError('Vous ne pouvez annuler que vos propres commandes.'));
+      }
+    }
+
     // The transition graph, tenant ownership check, stock decrement
     // (on delivery) and audit log insert all happen inside this one
     // RPC call, atomically — see 012_order_status_transitions.sql.

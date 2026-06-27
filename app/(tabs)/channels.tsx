@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { isOwner } from '../../lib/userRole';
 
 type Platform = 'whatsapp' | 'facebook' | 'tiktok';
 
@@ -210,19 +211,21 @@ export default function ChannelsScreen() {
               </Text>
             </View>
 
-            <Pressable
-              style={[styles.actionButton, connection ? styles.disconnectButton : null]}
-              onPress={() => (connection ? handleDisconnect(connection) : handleConnect(platform))}
-              disabled={isPending}
-            >
-              {isPending ? (
-                <ActivityIndicator color={connection ? '#DC2626' : '#FFFFFF'} size="small" />
-              ) : (
-                <Text style={[styles.actionButtonText, connection ? styles.disconnectButtonText : null]}>
-                  {connection ? 'Déconnecter' : 'Connecter'}
-                </Text>
-              )}
-            </Pressable>
+            {isOwner() && (
+              <Pressable
+                style={[styles.actionButton, connection ? styles.disconnectButton : null]}
+                onPress={() => (connection ? handleDisconnect(connection) : handleConnect(platform))}
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <ActivityIndicator color={connection ? '#DC2626' : '#FFFFFF'} size="small" />
+                ) : (
+                  <Text style={[styles.actionButtonText, connection ? styles.disconnectButtonText : null]}>
+                    {connection ? 'Déconnecter' : 'Connecter'}
+                  </Text>
+                )}
+              </Pressable>
+            )}
           </View>
         );
       })}
