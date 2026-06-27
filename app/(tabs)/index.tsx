@@ -58,6 +58,7 @@ export default function DashboardScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [firstName, setFirstName] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -68,8 +69,20 @@ export default function DashboardScreen() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) setStats(await res.json());
+
+      // Charger le prénom si pas encore disponible
+      if (!firstName) {
+        const { data } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (data?.full_name) {
+          setFirstName(data.full_name.split(' ')[0]);
+        }
+      }
     } catch { /* silencieux */ }
-  }, []);
+  }, [firstName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -100,7 +113,7 @@ export default function DashboardScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#6366F1" />}
     >
-      <Text style={styles.title}>Bonjour 👋</Text>
+      <Text style={styles.title}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
 
       {/* ── Aujourd'hui ── */}
       <Text style={styles.sectionLabel}>AUJOURD'HUI</Text>

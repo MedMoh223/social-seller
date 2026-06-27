@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { isOwner } from '../../lib/userRole';
 
 interface OrderRow {
   id: string;
@@ -149,14 +150,16 @@ export default function OrdersScreen() {
       <View style={styles.headerRow}>
         <Text style={styles.title}>Commandes</Text>
         <View style={styles.headerActions}>
-          <Pressable
-            style={[styles.exportButton, (isExporting || filteredOrders.length === 0) && styles.buttonDisabled]}
-            onPress={handleExportCSV}
-            disabled={isExporting || filteredOrders.length === 0}
-          >
-            <Feather name="download" size={14} color="#6366F1" />
-            <Text style={styles.exportButtonText}>CSV</Text>
-          </Pressable>
+          {isOwner() && (
+            <Pressable
+              style={[styles.exportButton, (isExporting || filteredOrders.length === 0) && styles.buttonDisabled]}
+              onPress={handleExportCSV}
+              disabled={isExporting || filteredOrders.length === 0}
+            >
+              <Feather name="download" size={14} color="#6366F1" />
+              <Text style={styles.exportButtonText}>CSV</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.addButton} onPress={() => router.push('/order/new')}>
             <Feather name="plus" size={20} color="#FFFFFF" />
           </Pressable>
