@@ -212,8 +212,12 @@ export default function ProfileScreen() {
             <Divider />
           </>
         )}
-        <MenuItem icon="link-2" label="Canaux connectés" onPress={() => router.push('/(tabs)/channels')} />
-        <Divider />
+        {isOwner() && (
+          <>
+            <MenuItem icon="link-2" label="Canaux connectés" onPress={() => router.push('/(tabs)/channels')} />
+            <Divider />
+          </>
+        )}
         <MenuItem icon="package" label="Produits & stock" onPress={() => router.push('/(tabs)/stock')} />
         <Divider />
         <MenuItem icon="users" label="Clients" onPress={() => router.push('/(tabs)/clients')} />
