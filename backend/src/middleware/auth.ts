@@ -40,11 +40,16 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 
     const { data: userRow, error: userRowError } = await supabaseAdmin
       .from('users')
-      .select('tenant_id, role')
+      .select('tenant_id, role, is_active')
       .eq('id', data.user.id)
       .maybeSingle();
 
     if (userRowError || !userRow) {
+      throw new UnauthorizedError();
+    }
+
+    // Compte désactivé par le owner
+    if (userRow.is_active === false) {
       throw new UnauthorizedError();
     }
 

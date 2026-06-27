@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/errorHandler';
 import { publicLimiter, webhookLimiter } from './middleware/rateLimiter';
 import { rawBodyParser } from './middleware/rawBody';
+import { agentsRouter } from './routes/agents';
 import { authRouter } from './routes/auth';
 import { connectionsRouter } from './routes/connections';
 import { messagesRouter } from './routes/messages';
@@ -165,6 +166,7 @@ export function createApp() {
   app.use(express.json());
 
   app.use('/auth', publicLimiter, authRouter);
+  app.use('/agents', agentsRouter);
   app.use('/connections', connectionsRouter);
   app.use('/conversations', messagesRouter);
   app.use('/orders', ordersRouter);

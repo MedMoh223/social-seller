@@ -205,6 +205,8 @@ export default function ProfileScreen() {
 
       {/* Menu */}
       <View style={styles.section}>
+        <MenuItem icon="user-plus" label="Mon équipe" onPress={() => router.push('/agents')} />
+        <Divider />
         <MenuItem icon="link-2" label="Canaux connectés" onPress={() => router.push('/(tabs)/channels')} />
         <Divider />
         <MenuItem icon="package" label="Produits & stock" onPress={() => router.push('/(tabs)/stock')} />
