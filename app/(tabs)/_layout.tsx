@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { setUserRole, clearUserRole } from '../../lib/userRole';
+import { setUserRole, clearUserRole, isOwner } from '../../lib/userRole';
 
 const ACTIVE_COLOR = '#6366F1';
 const INACTIVE_COLOR = '#94A3B8';
@@ -125,12 +125,12 @@ export default function TabsLayout() {
       <Tabs.Screen name="stock" options={{ href: null }} />
       <Tabs.Screen
         name="stats"
-        options={{
+        options={isOwner() ? {
           title: 'Stats',
           tabBarIcon: ({ color, size }) => (
             <Feather name="bar-chart-2" size={size} color={color} />
           ),
-        }}
+        } : { href: null }}
       />
       <Tabs.Screen name="channels" options={{ href: null }} />
       <Tabs.Screen

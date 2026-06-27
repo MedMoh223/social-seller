@@ -84,13 +84,13 @@ export default function StockScreen() {
           </Pressable>
         )}
       </View>
-      {products.length > 0 ? (
+      {isOwner() && products.length > 0 ? (
         <View style={styles.totalsCard}>
           <View style={styles.totalBlock}>
             <Text style={styles.totalLabel}>Valeur marché</Text>
             <Text style={styles.totalValue}>{formatAmount(totalMarket)}</Text>
           </View>
-          {isOwner() && totalCost > 0 ? (
+          {totalCost > 0 ? (
             <View style={styles.totalBlock}>
               <Text style={styles.totalLabel}>Valeur coût</Text>
               <Text style={[styles.totalValue, styles.totalValueMuted]}>{formatAmount(totalCost)}</Text>

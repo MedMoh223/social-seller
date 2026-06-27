@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -78,6 +79,10 @@ export default function CustomerScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -163,32 +168,42 @@ export default function CustomerScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Supprimer ce client ?',
-      'Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer', style: 'destructive',
-          onPress: async () => {
-            const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!apiUrl || !session || !customer) return;
+    setDeleteReason('');
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
 
-            const res = await fetch(`${apiUrl}/customers/${customer.id}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
+  const confirmDelete = async () => {
+    if (!deleteReason.trim()) {
+      setDeleteError('Un motif est requis.');
+      return;
+    }
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!apiUrl || !session || !customer) return;
 
-            if (res.status === 204) {
-              router.back();
-            } else {
-              Alert.alert('Erreur', 'Impossible de supprimer le client.');
-            }
-          },
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${apiUrl}/customers/${customer.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
-      ],
-    );
+        body: JSON.stringify({ reason: deleteReason.trim() }),
+      });
+
+      if (res.status === 204) {
+        setShowDeleteModal(false);
+        router.back();
+      } else {
+        setDeleteError('Impossible de supprimer le client.');
+      }
+    } catch {
+      setDeleteError('Erreur réseau.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -339,6 +354,36 @@ export default function CustomerScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Modal suppression avec motif */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Supprimer ce client ?</Text>
+            <Text style={styles.modalSubtitle}>Cette action est irréversible. Précisez le motif.</Text>
+            <TextInput
+              style={[styles.modalInput, deleteError ? styles.inputError : null]}
+              placeholder="Motif de suppression…"
+              placeholderTextColor="#94A3B8"
+              value={deleteReason}
+              onChangeText={(t) => { setDeleteReason(t); setDeleteError(null); }}
+              multiline
+              numberOfLines={3}
+            />
+            {deleteError ? <Text style={styles.errorText}>{deleteError}</Text> : null}
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowDeleteModal(false)}>
+                <Text style={styles.cancelBtnText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.deleteBtn} onPress={confirmDelete} disabled={isDeleting}>
+                {isDeleting
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <Text style={styles.deleteBtnText}>Supprimer</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -451,4 +496,18 @@ const styles = StyleSheet.create({
   convBody: { flex: 1 },
   convPlatform: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
   convDate:     { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+
+  // Modal suppression
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalBox: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: '100%' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 6 },
+  modalSubtitle: { fontSize: 14, color: '#64748B', marginBottom: 16 },
+  modalInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, fontSize: 14, color: '#0F172A', minHeight: 80, textAlignVertical: 'top', marginBottom: 8 },
+  inputError: { borderColor: '#DC2626' },
+  errorText: { fontSize: 13, color: '#DC2626', marginBottom: 12 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
+  deleteBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#DC2626', alignItems: 'center' },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 });

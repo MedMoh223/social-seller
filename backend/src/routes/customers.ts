@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import { authenticatedLimiter } from '../middleware/rateLimiter';
 import { ValidationError, NotFoundError } from '../lib/httpErrors';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
+import { recordAuditLog } from '../services/auditLogService';
 
 export const customersRouter = Router();
 customersRouter.use(requireAuth, authenticatedLimiter);
@@ -116,8 +117,17 @@ customersRouter.patch('/:id', async (req, res, next) => {
   }
 });
 
-// DELETE /customers/:id — soft delete
+const deleteSchema = z.object({
+  reason: z.string().trim().min(1, 'Un motif est requis.').max(500),
+});
+
+// DELETE /customers/:id — soft delete avec motif obligatoire
 customersRouter.delete('/:id', async (req, res, next) => {
+  const parsed = deleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return next(new ValidationError(parsed.error.issues[0]?.message ?? 'Un motif est requis.'));
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('customers')
@@ -125,11 +135,20 @@ customersRouter.delete('/:id', async (req, res, next) => {
       .eq('id', req.params.id)
       .eq('tenant_id', req.user!.tenantId)
       .is('deleted_at', null)
-      .select('id')
+      .select('id, name')
       .maybeSingle();
 
     if (error) throw error;
     if (!data) return next(new NotFoundError());
+
+    await recordAuditLog({
+      tenantId: req.user!.tenantId,
+      userId: req.user!.id,
+      action: 'customer_deleted',
+      tableName: 'customers',
+      recordId: data.id,
+      oldValue: { name: data.name, reason: parsed.data.reason },
+    });
 
     res.status(204).send();
   } catch (err) {
