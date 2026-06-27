@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { setUserRole, clearUserRole } from '../../lib/userRole';
 
 const ACTIVE_COLOR = '#6366F1';
 const INACTIVE_COLOR = '#94A3B8';
@@ -13,6 +14,25 @@ const ORDERS_DONE_STATUSES = ['delivered', 'cancelled'];
 export default function TabsLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
+
+  // Charger le rôle dès que les tabs montent (store en mémoire réinitialisé au redémarrage)
+  useEffect(() => {
+    async function loadRole() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (data?.role) {
+        setUserRole(data.role as 'owner' | 'agent', session.user.id);
+      } else {
+        clearUserRole();
+      }
+    }
+    loadRole();
+  }, []);
 
   useEffect(() => {
     let convChannel: ReturnType<typeof supabase.channel> | null = null;
