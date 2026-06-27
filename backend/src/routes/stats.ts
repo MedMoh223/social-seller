@@ -69,9 +69,30 @@ async function sumDeliveredRevenue(tenantId: string, from: Date, to: Date): Prom
   return (data ?? []).reduce((sum, row) => sum + Number(row.total_amount), 0);
 }
 
+async function countOrdersToday(tenantId: string, since: Date): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .gte('created_at', since.toISOString());
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function countActiveConversations(tenantId: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from('conversations')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .neq('status', 'resolved');
+  if (error) throw error;
+  return count ?? 0;
+}
+
 statsRouter.get('/', async (req, res, next) => {
   const tenantId = req.user!.tenantId;
   const now = new Date();
+  const todayStart = startOfUTCDay(now);
 
   try {
     const [
@@ -80,15 +101,21 @@ statsRouter.get('/', async (req, res, next) => {
       ordersByStatusCounts,
       revenueThisMonth,
       revenueLastMonth,
+      revenueToday,
+      ordersToday,
+      activeConversations,
       topProductsResult,
       lowStockProductsResult,
     ] = await Promise.all([
-      countInboundMessagesSince(tenantId, startOfUTCDay(now)),
+      countInboundMessagesSince(tenantId, todayStart),
       countInboundMessagesSince(tenantId, startOfWeek(now)),
       Promise.all(ORDER_STATUSES.map((status) => countOrdersByStatus(tenantId, status))),
       sumDeliveredRevenue(tenantId, startOfMonth(now), startOfMonth(now, 1)),
       sumDeliveredRevenue(tenantId, startOfMonth(now, -1), startOfMonth(now)),
-      supabaseAdmin.rpc('get_top_products', { p_tenant_id: tenantId, p_limit: 5 }),
+      sumDeliveredRevenue(tenantId, todayStart, new Date(todayStart.getTime() + 86400000)),
+      countOrdersToday(tenantId, todayStart),
+      countActiveConversations(tenantId),
+      supabaseAdmin.rpc('get_top_products', { p_tenant_id: tenantId, p_limit: 3 }),
       supabaseAdmin
         .from('products')
         .select('stock_quantity, alert_threshold')
@@ -113,6 +140,9 @@ statsRouter.get('/', async (req, res, next) => {
     res.status(200).json({
       messages_today: messagesToday,
       messages_this_week: messagesThisWeek,
+      orders_today: ordersToday,
+      revenue_today: revenueToday,
+      active_conversations: activeConversations,
       orders_by_status: ordersByStatus,
       revenue_this_month: revenueThisMonth,
       revenue_last_month: revenueLastMonth,

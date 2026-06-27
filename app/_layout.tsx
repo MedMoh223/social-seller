@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { registerForPushNotificationsAsync } from '../lib/notifications';
+import { getActiveConversation } from '../lib/activeConversation';
 import { supabase } from '../lib/supabase';
 
 // Ferme automatiquement le Chrome Custom Tab Android après le redirect OAuth.
@@ -12,14 +13,19 @@ import { supabase } from '../lib/supabase';
 WebBrowser.maybeCompleteAuthSession();
 
 // Controls how notifications are handled in foreground and background.
+// Supprime la notif si l'utilisateur est déjà dans une conversation.
+// shouldShowBanner/shouldShowList contrôlent l'affichage en foreground ;
+// addNotificationReceivedListener ci-dessous dismiss en fallback Android.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (_notification) => {
+    const isViewing = getActiveConversation() !== null;
+    return {
+      shouldSetBadge: !isViewing,
+      shouldShowBanner: !isViewing,
+      shouldShowList: !isViewing,
+      shouldPlaySound: !isViewing,
+    };
+  },
 });
 
 async function clearNotifications() {
@@ -50,6 +56,14 @@ export default function RootLayout() {
       }
     });
 
+    // Fallback Android : dismiss immédiatement si la notif arrive pendant
+    // qu'on est dans une conversation (shouldShowBanner peut ne pas suffire).
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      if (getActiveConversation() !== null) {
+        Notifications.dismissNotificationAsync(notification.request.identifier);
+      }
+    });
+
     // Handle tap on notification when app is backgrounded
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown> | null;
@@ -72,6 +86,7 @@ export default function RootLayout() {
     return () => {
       appStateSub.remove();
       subscription.unsubscribe();
+      receivedSub.remove();
       responseSub.remove();
     };
   }, []);

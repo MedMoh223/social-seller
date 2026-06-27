@@ -20,11 +20,16 @@ const MAX_IMAGES = 4;
 async function uploadImage(uri: string, tenantId: string): Promise<string> {
   const filename = `${tenantId}/${Date.now()}.jpg`;
 
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  // FormData est la méthode fiable sur Android pour uploader un fichier local
+  const formData = new FormData();
+  formData.append('file', {
+    uri,
+    name: filename,
+    type: 'image/jpeg',
+  } as unknown as Blob);
 
-  const { error } = await supabase.storage.from('products').upload(filename, blob, {
-    contentType: 'image/jpeg',
+  const { error } = await supabase.storage.from('products').upload(filename, formData, {
+    contentType: 'multipart/form-data',
     upsert: false,
   });
 
@@ -122,10 +127,15 @@ export default function NewProductScreen() {
         }),
       });
 
-      if (!response.ok) throw new Error('create_failed');
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        console.error('[NewProduct] backend error:', response.status, body);
+        throw new Error(`create_failed: ${response.status} ${JSON.stringify(body)}`);
+      }
 
       router.back();
-    } catch {
+    } catch (err) {
+      console.error('[NewProduct] create error:', err);
       setErrorMessage('Impossible de créer ce produit. Réessayez.');
     } finally {
       setIsSaving(false);

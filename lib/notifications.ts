@@ -54,9 +54,26 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return token;
   }
 
+  // Ne pas enregistrer le token si l'utilisateur n'a pas encore de tenant
+  // (compte tout juste créé, profile-setup pas encore complété).
+  // Le token sera enregistré après refreshSession() dans profile-setup.tsx
+  // via l'événement TOKEN_REFRESHED.
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('tenant_id')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (!userRow?.tenant_id) {
+    return token;
+  }
+
+  // tenant_id and user_id are stamped by the 010_push_tokens.sql trigger
+  // (auth.uid() / current_tenant_id()) — intentionally omitted here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase
     .from('push_tokens')
-    .upsert({ token, platform: Platform.OS }, { onConflict: 'token' });
+    .upsert({ token, platform: Platform.OS } as any, { onConflict: 'token' });
 
   if (__DEV__ && error) {
     console.warn('[Push] upsert failed:', error.message);

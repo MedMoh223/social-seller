@@ -12,23 +12,22 @@ export const whatsappOAuthRouter = Router();
 const CALLBACK_PATH = '/oauth/whatsapp/callback';
 
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
-  const params = new URLSearchParams({ platform: 'whatsapp' });
-  if (reason) params.set('reason', reason);
-  const deepLink = `socialseller://oauth-${status}?${params.toString()}`;
-
-  // expo-web-browser's openAuthSessionAsync intercepts HTTP 302 redirects to
-  // the registered custom scheme and closes the Chrome Custom Tab cleanly —
-  // no grey screen, no hanging activity. The HTML+window.location approach
-  // dispatches an Android intent from JavaScript which can spawn a new
-  // activity and leave the Custom Tab open (grey screen).
-  res.redirect(302, deepLink);
+  // Route through the /oauth/redirect bridge page (see app.ts) so that:
+  //  - Android: JavaScript navigates to an intent:// URI → Chrome fires the
+  //             Intent AND closes the Custom Tab automatically.
+  //  - iOS:     JavaScript navigates to socialseller:// → ASWebAuthenticationSession
+  //             intercepts it before the page renders.
+  // A direct 302 → intent:// does NOT work because Chrome's network stack does
+  // not recognise intent:// as a scheme to follow (only JS navigation does).
+  const qs = new URLSearchParams({ platform: 'whatsapp', status });
+  if (reason) qs.set('reason', reason);
+  res.redirect(302, `/oauth/redirect?${qs.toString()}`);
 }
 
 whatsappOAuthRouter.get('/callback', async (req, res) => {
   const code = req.query.code;
   const state = req.query.state;
   const providerError = req.query.error;
-
   if (providerError || typeof code !== 'string' || typeof state !== 'string') {
     redirectToApp(res, 'error', 'denied');
     return;
@@ -108,7 +107,7 @@ whatsappOAuthRouter.get('/callback', async (req, res) => {
       newValue: { platform: 'whatsapp', external_account_id: phoneNumber.id },
     });
 
-    redirectToApp(res, 'success');
+    redirectToApp(res, 'success', undefined);
   } catch (err) {
     if (err instanceof ConflictError) {
       redirectToApp(res, 'error', 'already_connected');

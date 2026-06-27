@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,79 +9,89 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import { COUNTRY_CODE, PHONE_DIGITS_LENGTH } from '../../lib/constants';
 
 const RESEND_DELAY_SECONDS = 58;
 
-const ACTIVATION_STEPS = [
-  'Ouvrez WhatsApp sur votre téléphone',
-  'Trouvez le message de Social Seller',
-  "Appuyez sur le lien d'activation",
-];
+type Channel = 'whatsapp' | 'email';
 
-const formatPhoneDigits = (digits: string) => digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+const STEPS: Record<Channel, string[]> = {
+  whatsapp: [
+    'Ouvrez WhatsApp sur votre téléphone',
+    'Trouvez le message de Social Seller',
+    "Appuyez sur le lien d'activation",
+  ],
+  email: [
+    'Ouvrez votre boîte mail',
+    'Trouvez le message de Social Seller',
+    "Appuyez sur le lien d'activation",
+  ],
+};
 
 export default function ActivationScreen() {
   const router = useRouter();
-  const [phoneDigits, setPhoneDigits] = useState('');
+  const { phone, userEmail } = useLocalSearchParams<{ phone?: string; userEmail?: string }>();
+  const email = userEmail;
+
+  const hasEmail = Boolean(email?.trim());
+  const [channel, setChannel] = useState<Channel>('whatsapp');
+  const [isSent, setIsSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSent, setIsSent] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_DELAY_SECONDS);
+  const [resendTick, setResendTick] = useState(0);
 
+  // Countdown — redémarre à chaque envoi
   useEffect(() => {
     if (!isSent) return;
-
+    setSecondsLeft(RESEND_DELAY_SECONDS);
     const timer = setInterval(() => {
-      setSecondsLeft((value) => (value > 0 ? value - 1 : 0));
+      setSecondsLeft((v) => (v > 0 ? v - 1 : 0));
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [isSent]);
+  }, [isSent, resendTick]);
 
-  const handlePhoneChange = (value: string) => {
-    setPhoneDigits(value.replace(/[^0-9]/g, '').slice(0, PHONE_DIGITS_LENGTH));
-  };
-
-  const handleSendLink = async () => {
+  const handleSend = async () => {
     setErrorMessage(null);
-
-    if (phoneDigits.length !== PHONE_DIGITS_LENGTH) {
-      setErrorMessage('Veuillez renseigner un numéro valide.');
-      return;
-    }
-
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-
-    if (!apiUrl) {
-      setErrorMessage('Service temporairement indisponible.');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${apiUrl}/auth/whatsapp-activation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `${COUNTRY_CODE}${phoneDigits}` }),
-      });
+      if (channel === 'whatsapp') {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) throw new Error('api_unavailable');
 
-      if (!response.ok) {
-        throw new Error('send_failed');
+        const response = await fetch(`${apiUrl}/auth/whatsapp-activation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone }),
+        });
+
+        if (!response.ok) throw new Error('send_failed');
+      }
+      if (channel === 'email') {
+        // L'envoi email nécessite Resend (disponible après achat socialseller.app).
+        // Le compte est déjà activé automatiquement — l'email est informatif uniquement.
+        setErrorMessage("L'envoi par email sera disponible prochainement. Votre compte est déjà actif, connectez-vous directement.");
+        setIsLoading(false);
+        return;
       }
 
       setIsSent(true);
-      setSecondsLeft(RESEND_DELAY_SECONDS);
+      setResendTick((t) => t + 1);
     } catch {
       setErrorMessage("Impossible d'envoyer le lien. Réessayez plus tard.");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleResend = () => {
+    setResendTick((t) => t + 1);
+    handleSend();
+  };
+
+  const steps = STEPS[channel];
 
   return (
     <KeyboardAvoidingView
@@ -93,60 +103,92 @@ export default function ActivationScreen() {
           <Text style={styles.backLinkText}>← Retour</Text>
         </Pressable>
 
-        <LinearGradient colors={['#ECFDF5', '#D1FAE5']} style={styles.icon}>
-          <Text style={styles.iconEmoji}>📲</Text>
+        <LinearGradient
+          colors={channel === 'whatsapp' ? ['#ECFDF5', '#D1FAE5'] : ['#EEF2FF', '#E0E7FF']}
+          style={styles.icon}
+        >
+          <Text style={styles.iconEmoji}>{channel === 'whatsapp' ? '📲' : '✉️'}</Text>
         </LinearGradient>
 
-        <Text style={styles.title}>Vérifiez WhatsApp</Text>
+        <Text style={styles.title}>Activer mon compte</Text>
         <Text style={styles.subtitle}>
-          Entrez votre numéro pour recevoir votre lien d&apos;activation sur WhatsApp
+          Choisissez comment recevoir votre lien d&apos;activation
         </Text>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>NUMÉRO DE TÉLÉPHONE</Text>
-          <View style={styles.phoneRow}>
-            <View style={styles.countryCode}>
-              <Text style={styles.countryCodeText}>{COUNTRY_CODE} 🇲🇱</Text>
-            </View>
-            <TextInput
-              style={styles.phoneInput}
-              value={phoneDigits}
-              onChangeText={handlePhoneChange}
-              keyboardType="phone-pad"
-              placeholder="76123456"
-              placeholderTextColor="#94A3B8"
-              maxLength={PHONE_DIGITS_LENGTH}
-            />
-          </View>
+        {/* Sélecteur de canal */}
+        <View style={styles.channelRow}>
+          <Pressable
+            style={[styles.channelTab, channel === 'whatsapp' && styles.channelTabActive]}
+            onPress={() => { setChannel('whatsapp'); setIsSent(false); setErrorMessage(null); }}
+          >
+            <Text style={[styles.channelTabText, channel === 'whatsapp' && styles.channelTabTextActive]}>
+              💬 WhatsApp
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.channelTab,
+              channel === 'email' && styles.channelTabActive,
+              !hasEmail && styles.channelTabDisabled,
+            ]}
+            onPress={() => {
+              if (!hasEmail) return;
+              setChannel('email');
+              setIsSent(false);
+              setErrorMessage(null);
+            }}
+            disabled={!hasEmail}
+          >
+            <Text style={[
+              styles.channelTabText,
+              channel === 'email' && styles.channelTabTextActive,
+              !hasEmail && styles.channelTabTextDisabled,
+            ]}>
+              📧 Email
+            </Text>
+          </Pressable>
         </View>
 
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        {!hasEmail && (
+          <Text style={styles.emailHint}>
+            Ajoutez un email à l&apos;inscription pour activer cette option
+          </Text>
+        )}
 
-        <Pressable
-          style={[styles.primaryButton, isLoading && styles.primaryButtonDisabled]}
-          onPress={handleSendLink}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Envoyer le lien</Text>
-          )}
-        </Pressable>
+        {/* Destination */}
+        <View style={styles.destinationCard}>
+          <Text style={styles.destinationLabel}>
+            {channel === 'whatsapp' ? 'Numéro WhatsApp' : 'Adresse email'}
+          </Text>
+          <Text style={styles.destinationValue}>
+            {channel === 'whatsapp' ? (phone ?? '—') : (email ?? '—')}
+          </Text>
+        </View>
 
-        {isSent ? (
+        {/* Bouton d'envoi */}
+        {!isSent ? (
+          <Pressable
+            style={[styles.sendButton, isLoading && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.sendButtonText}>Envoyer le lien</Text>
+            )}
+          </Pressable>
+        ) : (
           <>
-            <Text style={styles.sentConfirmation}>
-              Lien envoyé au{' '}
-              <Text style={styles.sentConfirmationBold}>
-                {COUNTRY_CODE} {formatPhoneDigits(phoneDigits)}
-              </Text>
-            </Text>
-
+            {/* Étapes */}
             <View style={styles.stepsCard}>
-              {ACTIVATION_STEPS.map((step, index) => (
-                <View key={step} style={styles.stepRow}>
-                  <View style={styles.stepBadge}>
+              {steps.map((step, index) => (
+                <View
+                  key={step}
+                  style={[styles.stepRow, index < steps.length - 1 && styles.stepRowBorder]}
+                >
+                  <View style={[styles.stepBadge, channel === 'email' && styles.stepBadgeEmail]}>
                     <Text style={styles.stepBadgeText}>{index + 1}</Text>
                   </View>
                   <Text style={styles.stepText}>{step}</Text>
@@ -154,25 +196,33 @@ export default function ActivationScreen() {
               ))}
             </View>
 
+            {/* Renvoi */}
             <View style={styles.resendRow}>
               {secondsLeft > 0 ? (
                 <Text style={styles.resendText}>Pas reçu ? Renvoyer dans {secondsLeft}s</Text>
+              ) : isLoading ? (
+                <ActivityIndicator color="#6366F1" />
               ) : (
-                <Pressable onPress={handleSendLink} disabled={isLoading}>
+                <Pressable onPress={handleResend}>
                   <Text style={styles.resendLink}>Pas reçu ? Renvoyer</Text>
                 </Pressable>
               )}
             </View>
           </>
-        ) : null}
+        )}
 
-        <Pressable
-          style={styles.skipButton}
-          onPress={() => router.push('/(auth)/profile-setup')}
-        >
-          <Text style={styles.skipButtonText}>Configurer WhatsApp plus tard →</Text>
-          <Text style={styles.skipButtonHint}>Vous pourrez le connecter depuis l'onglet Canaux</Text>
-        </Pressable>
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+        {/* Passer + Se connecter */}
+        <View style={styles.footer}>
+          <Pressable
+            style={styles.skipButton}
+            onPress={() => router.replace('/(auth)/login')}
+          >
+            <Text style={styles.skipButtonText}>Activer plus tard →</Text>
+            <Text style={styles.skipButtonHint}>Vous pourrez le faire depuis les Paramètres</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -205,84 +255,101 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     marginTop: 8,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  field: { marginBottom: 20 },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-    letterSpacing: 0.5,
+  channelRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 4,
     marginBottom: 8,
   },
-  phoneRow: {
-    flexDirection: 'row',
+  channelTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 9,
     alignItems: 'center',
+  },
+  channelTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  channelTabDisabled: { opacity: 0.4 },
+  channelTabText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  channelTabTextActive: { color: '#0F172A' },
+  channelTabTextDisabled: { color: '#94A3B8' },
+  emailHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  destinationCard: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  destinationLabel: { fontSize: 11, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, marginBottom: 4 },
+  destinationValue: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  sendButton: {
+    backgroundColor: '#25D366',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  sendButtonDisabled: { opacity: 0.7 },
+  sendButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  stepsCard: {
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 4,
+    marginBottom: 20,
   },
-  countryCode: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
   },
-  countryCodeText: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
-  phoneInput: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#0F172A',
+  stepRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
+  stepBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  stepBadgeEmail: { backgroundColor: '#6366F1' },
+  stepBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  stepText: { flex: 1, fontSize: 14, color: '#0F172A' },
+  resendRow: { alignItems: 'center', marginBottom: 20, minHeight: 20 },
+  resendText: { fontSize: 13, color: '#94A3B8' },
+  resendLink: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
   errorText: {
     color: '#DC2626',
     fontSize: 13,
     marginBottom: 12,
     textAlign: 'center',
   },
-  primaryButton: {
-    backgroundColor: '#10B981',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonDisabled: { opacity: 0.7 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  sentConfirmation: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  sentConfirmationBold: { fontWeight: '700', color: '#0F172A' },
-  stepsCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 20,
-    padding: 18,
-    marginTop: 20,
-  },
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#6366F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  stepBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  stepText: { flex: 1, fontSize: 14, color: '#0F172A' },
-  resendRow: { alignItems: 'center', marginTop: 20 },
-  resendText: { fontSize: 13, color: '#64748B' },
-  resendLink: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
-  skipButton: { alignSelf: 'center', marginTop: 24, alignItems: 'center' },
+  footer: { marginTop: 8 },
+  skipButton: { alignSelf: 'center', alignItems: 'center' },
   skipButtonText: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
   skipButtonHint: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
 });

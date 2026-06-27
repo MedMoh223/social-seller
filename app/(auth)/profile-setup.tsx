@@ -192,6 +192,10 @@ export default function ProfileSetupScreen() {
       }
     }
 
+    // Rafraîchir le JWT pour que le nouveau tenant_id soit propagé
+    // dans les requêtes Supabase dès l'entrée dans les onglets.
+    await supabase.auth.refreshSession();
+
     setIsLoading(false);
     router.replace('/(tabs)');
   };

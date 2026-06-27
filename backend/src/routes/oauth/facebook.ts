@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { env } from '../../config/env';
 import { consumeOAuthState } from '../../services/oauthStateService';
-import { exchangeCodeForToken, exchangeForLongLivedToken, graphGet } from '../../services/metaGraphClient';
+import { exchangeCodeForToken, exchangeForLongLivedToken, graphGet, graphPost } from '../../services/metaGraphClient';
 import { upsertConnection } from '../../services/connectionsService';
 import { recordAuditLog } from '../../services/auditLogService';
 import { ConflictError } from '../../lib/httpErrors';
@@ -12,23 +12,16 @@ export const facebookOAuthRouter = Router();
 const CALLBACK_PATH = '/oauth/facebook/callback';
 
 function redirectToApp(res: Response, status: 'success' | 'error', reason?: string) {
-  const params = new URLSearchParams({ platform: 'facebook' });
-  if (reason) params.set('reason', reason);
-  const deepLink = `socialseller://oauth-${status}?${params.toString()}`;
-
-  // expo-web-browser's openAuthSessionAsync intercepts HTTP 302 redirects to
-  // the registered custom scheme and closes the Chrome Custom Tab cleanly —
-  // no grey screen, no hanging activity. The HTML+window.location approach
-  // dispatches an Android intent from JavaScript which can spawn a new
-  // activity and leave the Custom Tab open (grey screen).
-  res.redirect(302, deepLink);
+  // See whatsapp.ts and app.ts (/oauth/redirect) for the full explanation.
+  const qs = new URLSearchParams({ platform: 'facebook', status });
+  if (reason) qs.set('reason', reason);
+  res.redirect(302, `/oauth/redirect?${qs.toString()}`);
 }
 
 facebookOAuthRouter.get('/callback', async (req, res) => {
   const code = req.query.code;
   const state = req.query.state;
   const providerError = req.query.error;
-
   if (providerError || typeof code !== 'string' || typeof state !== 'string') {
     redirectToApp(res, 'error', 'denied');
     return;
@@ -71,6 +64,23 @@ facebookOAuthRouter.get('/callback', async (req, res) => {
       tokenExpiresAt: null,
     });
 
+    // Subscribe the page to the app so that Meta delivers Messenger
+    // webhook events (messages, delivery receipts, read receipts) to
+    // our backend. Without this call, Meta sends no events even though
+    // the webhook URL is registered at the app level.
+    // subscribed_fields must be query params (not JSON body) for this endpoint.
+    try {
+      await graphPost<{ success: boolean }>(
+        `/${page.id}/subscribed_apps?subscribed_fields=messages%2Cmessage_deliveries%2Cmessage_reads`,
+        page.access_token,
+        {},
+      );
+    } catch (subErr) {
+      // Non-fatal: log but don't block the connection — the merchant can
+      // trigger a re-subscribe by disconnecting and reconnecting the page.
+      logger.warn({ err: subErr, pageId: page.id }, 'could not subscribe page to app webhooks');
+    }
+
     await recordAuditLog({
       tenantId: consumed.tenantId,
       userId: consumed.userId,
@@ -80,7 +90,7 @@ facebookOAuthRouter.get('/callback', async (req, res) => {
       newValue: { platform: 'facebook', external_account_id: page.id },
     });
 
-    redirectToApp(res, 'success');
+    redirectToApp(res, 'success', undefined);
   } catch (err) {
     if (err instanceof ConflictError) {
       redirectToApp(res, 'error', 'already_connected');

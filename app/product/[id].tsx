@@ -72,6 +72,7 @@ export default function ProductDetailScreen() {
   const [stockModalError, setStockModalError] = useState<string | null>(null);
 
   const [isArchiving, setIsArchiving] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const fetchProduct = useCallback(async () => {
     setErrorMessage(null);
@@ -258,7 +259,9 @@ export default function ProductDetailScreen() {
           <Text style={styles.label}>PHOTOS</Text>
           <View style={styles.imagesRow}>
             {product.image_urls.map((url) => (
-              <Image key={url} source={{ uri: url }} style={styles.imageThumb} />
+              <Pressable key={url} onPress={() => setZoomedImage(url)}>
+                <Image source={{ uri: url }} style={styles.imageThumb} />
+              </Pressable>
             ))}
           </View>
         </View>
@@ -365,6 +368,15 @@ export default function ProductDetailScreen() {
           <Text style={styles.dangerButtonText}>Archiver ce produit</Text>
         )}
       </Pressable>
+
+      {/* Modal zoom image */}
+      <Modal visible={!!zoomedImage} transparent animationType="fade" onRequestClose={() => setZoomedImage(null)}>
+        <Pressable style={styles.zoomOverlay} onPress={() => setZoomedImage(null)}>
+          {zoomedImage ? (
+            <Image source={{ uri: zoomedImage }} style={styles.zoomedImage} resizeMode="contain" />
+          ) : null}
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={isStockModalVisible}
@@ -527,6 +539,8 @@ const styles = StyleSheet.create({
   priceBlock: { flex: 1 },
   imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   imageThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: '#F1F5F9' },
+  zoomOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  zoomedImage: { width: '100%', height: '80%' },
   stockValueRow: {
     flexDirection: 'row',
     marginTop: 12,

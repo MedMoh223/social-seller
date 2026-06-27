@@ -1,6 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { useCallback, useEffect, useState } from 'react';
+import { setActiveConversation } from '../../lib/activeConversation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
@@ -66,6 +68,17 @@ export default function ConversationScreen() {
   const [saveForm, setSaveForm] = useState({ name: '', phone: '' });
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [linkedCustomer, setLinkedCustomer] = useState<{ id: string; name: string } | null>(null);
+
+  // Enregistre la conversation active pour supprimer les notifs push en doublon,
+  // et efface le badge dès l'ouverture de l'écran.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveConversation(id ?? null);
+      Notifications.dismissAllNotificationsAsync();
+      Notifications.setBadgeCountAsync(0);
+      return () => setActiveConversation(null);
+    }, [id]),
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -371,7 +384,10 @@ export default function ConversationScreen() {
                   conversationId: id,
                   platform: conversation.platform,
                   customerName: conversation.customer_name ?? '',
-                  customerId: conversation.customer_id ?? '',
+                  // Ne passer customer_id que si c'est un vrai UUID (pas un ID plateforme externe)
+                  customerId: /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(conversation.customer_id ?? '')
+                    ? conversation.customer_id
+                    : '',
                 },
               })
             }

@@ -48,11 +48,13 @@ export default function LoginScreen() {
     setIsLoading(false);
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage('Numéro ou mot de passe incorrect.');
       return;
     }
 
-    router.replace('/(tabs)');
+    // Passe par l'index qui vérifie tenant_id et redirige vers
+    // profile-setup si le compte n'a pas encore de tenant.
+    router.replace('/');
   };
 
   return (
@@ -101,7 +103,7 @@ export default function LoginScreen() {
               placeholderTextColor="#94A3B8"
             />
             <Pressable
-              onPress={() => setIsPasswordVisible((visible) => !visible)}
+              onPress={() => setIsPasswordVisible((v) => !v)}
               hitSlop={8}
             >
               <Feather
@@ -113,8 +115,11 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.forgotPasswordLink}>
-          <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
+        {/* Mot de passe oublié — sera câblé via WhatsApp quand WABA Social Seller sera prêt */}
+        <Pressable style={styles.forgotPasswordLink} disabled>
+          <Text style={[styles.forgotPasswordText, styles.forgotPasswordDisabled]}>
+            Mot de passe oublié ?
+          </Text>
         </Pressable>
 
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -138,13 +143,13 @@ export default function LoginScreen() {
         </View>
 
         <Pressable
-          style={styles.whatsappButton}
+          style={styles.activationButton}
           onPress={() => router.push('/(auth)/activation')}
         >
-          <View style={styles.whatsappCircle}>
-            <Text style={styles.whatsappCircleText}>W</Text>
+          <View style={styles.activationCircle}>
+            <Text style={styles.activationCircleText}>W</Text>
           </View>
-          <Text style={styles.whatsappButtonText}>Activer via WhatsApp</Text>
+          <Text style={styles.activationButtonText}>Activer mon compte</Text>
         </Pressable>
 
         <Pressable style={styles.bottomLink} onPress={() => router.push('/(auth)/register')}>
@@ -223,6 +228,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordLink: { alignSelf: 'flex-end', marginBottom: 24 },
   forgotPasswordText: { fontSize: 13, fontWeight: '600', color: '#6366F1' },
+  forgotPasswordDisabled: { color: '#CBD5E1' },
   errorText: {
     color: '#DC2626',
     fontSize: 13,
@@ -250,7 +256,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#94A3B8',
   },
-  whatsappButton: {
+  activationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -260,7 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
   },
-  whatsappCircle: {
+  activationCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -269,8 +275,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 10,
   },
-  whatsappCircleText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  whatsappButtonText: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  activationCircleText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  activationButtonText: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   bottomLink: { alignSelf: 'center', marginTop: 24 },
   bottomLinkText: { fontSize: 13, color: '#64748B' },
   bottomLinkAccent: { fontWeight: '600', color: '#6366F1' },

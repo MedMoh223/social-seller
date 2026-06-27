@@ -38,13 +38,16 @@ export default function TabsLayout() {
     loadUnread();
     loadActiveOrders();
 
+    // Nom de canal unique par montage — évite "cannot add callbacks after
+    // subscribe()" si le composant remonte (navigation, strict mode dev).
+    const ts = Date.now();
     convChannel = supabase
-      .channel('unread-badge')
+      .channel(`unread-badge-${ts}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, loadUnread)
       .subscribe();
 
     ordersChannel = supabase
-      .channel('orders-badge')
+      .channel(`orders-badge-${ts}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadActiveOrders)
       .subscribe();
 

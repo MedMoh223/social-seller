@@ -14,16 +14,22 @@ const STATUS_NOTIFICATIONS: Partial<Record<string, string>> = {
   confirmed: '✅ Votre commande a été confirmée. Nous la préparons bientôt.',
   shipped: '🚚 Votre commande a été expédiée. Vous la recevrez prochainement.',
   delivered: '🎉 Votre commande a bien été livrée. Merci pour votre confiance !',
-  cancelled: "❌ Votre commande a été annulée. N'hésitez pas à nous contacter pour plus d'informations.",
+  cancelled: "❌ Votre commande a été annulée.",
 };
 
 async function notifyClientOnStatusChange(
   conversationId: string,
   tenantId: string,
   newStatus: string,
+  cancelledReason?: string | null,
 ): Promise<void> {
-  const message = STATUS_NOTIFICATIONS[newStatus];
+  let message = STATUS_NOTIFICATIONS[newStatus];
   if (!message) return;
+
+  // Inclure le motif dans la notification d'annulation si fourni.
+  if (newStatus === 'cancelled' && cancelledReason?.trim()) {
+    message += ` Motif : ${cancelledReason.trim()}`;
+  }
 
   try {
     const { data: conversation } = await supabaseAdmin
@@ -243,7 +249,12 @@ ordersRouter.patch('/:id', async (req, res, next) => {
 
     // Notifier le client si la commande est liée à une conversation (fire-and-forget)
     if (order.conversation_id) {
-      void notifyClientOnStatusChange(order.conversation_id, req.user!.tenantId, parsed.data.status);
+      void notifyClientOnStatusChange(
+        order.conversation_id,
+        req.user!.tenantId,
+        parsed.data.status,
+        parsed.data.cancelledReason,
+      );
     }
 
     res.status(200).json({ order });

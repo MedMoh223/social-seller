@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -119,6 +119,7 @@ export default function InboxScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     const { data: convData } = await supabase
@@ -156,15 +157,32 @@ export default function InboxScreen() {
     setConversations(items);
   }, []);
 
+  // Rafraîchit la liste dès qu'on revient sur cet onglet
+  // (ex: après avoir résolu une conversation depuis l'écran de discussion)
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations();
+    }, [fetchConversations]),
+  );
+
   useEffect(() => {
     fetchConversations().finally(() => setIsLoading(false));
 
+    // Nom de canal unique par montage pour éviter l'erreur
+    // "cannot add callbacks after subscribe()" quand le composant
+    // remonte (ex: retour depuis OAuth Custom Tab ou strict mode dev).
+    // removeChannel(channel) dans le cleanup supprime bien le bon canal
+    // puisqu'on garde la référence locale.
+    const ts = Date.now();
     const channel = supabase
-      .channel('inbox-messages')
+      .channel(`inbox-messages-${ts}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
         fetchConversations();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => {
+        fetchConversations();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => {
         fetchConversations();
       })
       .subscribe();
@@ -185,6 +203,8 @@ export default function InboxScreen() {
     const q = searchQuery.trim().toLowerCase();
 
     return conversations.filter((item) => {
+      if (!showResolved && item.status === 'resolved') return false;
+      if (showResolved && item.status !== 'resolved') return false;
       if (platformFilter !== 'all' && item.platform !== platformFilter) return false;
       if (unreadOnly && item.unreadCount === 0) return false;
       if (q) {
@@ -201,7 +221,7 @@ export default function InboxScreen() {
     return Array.from(platforms);
   }, [conversations]);
 
-  const hasActiveFilters = searchQuery.trim() !== '' || platformFilter !== 'all' || unreadOnly;
+  const hasActiveFilters = searchQuery.trim() !== '' || platformFilter !== 'all' || unreadOnly || showResolved;
 
   const ListHeader = (
     <View>
@@ -235,6 +255,15 @@ export default function InboxScreen() {
         >
           <Feather name="mail" size={12} color={unreadOnly ? '#FFFFFF' : '#64748B'} style={styles.chipIcon} />
           <Text style={[styles.chipText, unreadOnly && styles.chipTextActive]}>Non lus</Text>
+        </Pressable>
+
+        {/* Résolues */}
+        <Pressable
+          style={[styles.chip, showResolved && styles.chipResolvedActive]}
+          onPress={() => setShowResolved((v) => !v)}
+        >
+          <Feather name="check-circle" size={12} color={showResolved ? '#FFFFFF' : '#64748B'} style={styles.chipIcon} />
+          <Text style={[styles.chipText, showResolved && styles.chipTextActive]}>Résolues</Text>
         </Pressable>
 
         {/* Plateforme : Tous */}
@@ -297,14 +326,18 @@ export default function InboxScreen() {
       renderItem={({ item }) => {
         const platform = (item.platform in PLATFORM_ICONS ? item.platform : 'whatsapp') as Platform;
 
+        const isResolved = item.status === 'resolved';
         return (
-          <Pressable style={styles.row} onPress={() => router.push(`/conversation/${item.id}`)}>
-            <View style={[styles.avatar, { backgroundColor: PLATFORM_COLORS[platform] }]}>
-              <Feather name={PLATFORM_ICONS[platform]} size={18} color="#FFFFFF" />
+          <Pressable
+            style={[styles.row, isResolved && styles.rowResolved]}
+            onPress={() => router.push(`/conversation/${item.id}`)}
+          >
+            <View style={[styles.avatar, { backgroundColor: isResolved ? '#94A3B8' : PLATFORM_COLORS[platform] }]}>
+              <Feather name={isResolved ? 'check' : PLATFORM_ICONS[platform]} size={18} color="#FFFFFF" />
             </View>
             <View style={styles.rowBody}>
               <View style={styles.rowTopLine}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
+                <Text style={[styles.rowTitle, isResolved && styles.rowTitleResolved]} numberOfLines={1}>
                   {item.customer_name || item.customer_id || 'Client'}
                 </Text>
                 <Text style={styles.rowTime}>{formatRelativeTime(item.updated_at)}</Text>
@@ -313,7 +346,11 @@ export default function InboxScreen() {
                 <Text style={styles.rowPreview} numberOfLines={1}>
                   {item.lastMessage ? truncate(item.lastMessage, PREVIEW_MAX_LENGTH) : 'Aucun message'}
                 </Text>
-                {item.unreadCount > 0 ? (
+                {isResolved ? (
+                  <View style={styles.resolvedBadge}>
+                    <Text style={styles.resolvedBadgeText}>Résolu</Text>
+                  </View>
+                ) : item.unreadCount > 0 ? (
                   <View style={styles.unreadBadge}>
                     <Text style={styles.unreadBadgeText}>
                       {item.unreadCount > 9 ? '9+' : item.unreadCount}
@@ -360,6 +397,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipActive: { backgroundColor: '#6366F1' },
+  chipResolvedActive: { backgroundColor: '#10B981' },
   chipIcon: { marginRight: 4 },
   chipText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
   chipTextActive: { color: '#FFFFFF' },
@@ -408,6 +446,15 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   rowPreview: { flex: 1, fontSize: 12, color: '#64748B', marginRight: 8 },
+  rowResolved: { opacity: 0.7 },
+  rowTitleResolved: { color: '#94A3B8' },
+  resolvedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+  },
+  resolvedBadgeText: { fontSize: 10, fontWeight: '600', color: '#10B981' },
   unreadBadge: {
     minWidth: 20,
     height: 20,
