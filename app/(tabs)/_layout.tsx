@@ -14,21 +14,26 @@ const ORDERS_DONE_STATUSES = ['delivered', 'cancelled'];
 export default function TabsLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
+  const [roleLoaded, setRoleLoaded] = useState(false);
 
-  // Charger le rôle dès que les tabs montent (store en mémoire réinitialisé au redémarrage)
+  // Charger le rôle AVANT de rendre les tabs — sinon isOwner() retourne false au premier rendu
   useEffect(() => {
     async function loadRole() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const { data } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (data?.role) {
-        setUserRole(data.role as 'owner' | 'agent', session.user.id);
-      } else {
-        clearUserRole();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setRoleLoaded(true); return; }
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (data?.role) {
+          setUserRole(data.role as 'owner' | 'agent', session.user.id);
+        } else {
+          clearUserRole();
+        }
+      } finally {
+        setRoleLoaded(true);
       }
     }
     loadRole();
@@ -76,6 +81,10 @@ export default function TabsLayout() {
       if (ordersChannel) supabase.removeChannel(ordersChannel);
     };
   }, []);
+
+  // Attendre que le rôle soit résolu avant de rendre les écrans
+  // (évite le flash où isOwner() retourne false et masque les sections owner)
+  if (!roleLoaded) return null;
 
   return (
     <Tabs
