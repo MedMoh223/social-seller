@@ -158,7 +158,7 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.body}>
       {/* Logo + Nom boutique */}
       <View style={styles.heroSection}>
-        <Pressable style={styles.logoWrap} onPress={handlePickLogo} disabled={isUploadingLogo}>
+        <Pressable style={styles.logoWrap} onPress={isOwner() ? handlePickLogo : undefined} disabled={isUploadingLogo || !isOwner()}>
           {isUploadingLogo ? (
             <ActivityIndicator color="#6366F1" />
           ) : tenant?.logo_url ? (
@@ -168,12 +168,14 @@ export default function ProfileScreen() {
               <Feather name="image" size={28} color="#94A3B8" />
             </View>
           )}
-          <View style={styles.logoEditBadge}>
-            <Feather name="camera" size={12} color="#FFFFFF" />
-          </View>
+          {isOwner() && (
+            <View style={styles.logoEditBadge}>
+              <Feather name="camera" size={12} color="#FFFFFF" />
+            </View>
+          )}
         </Pressable>
 
-        {isEditingName ? (
+        {isOwner() && isEditingName ? (
           <View style={styles.nameEditRow}>
             <TextInput
               style={styles.nameInput}
@@ -193,9 +195,9 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : (
-          <Pressable style={styles.nameRow} onPress={() => setIsEditingName(true)}>
+          <Pressable style={styles.nameRow} onPress={isOwner() ? () => setIsEditingName(true) : undefined}>
             <Text style={styles.shopName}>{tenant?.name ?? 'Ma boutique'}</Text>
-            <Feather name="edit-2" size={14} color="#94A3B8" style={{ marginLeft: 6 }} />
+            {isOwner() && <Feather name="edit-2" size={14} color="#94A3B8" style={{ marginLeft: 6 }} />}
           </Pressable>
         )}
 
