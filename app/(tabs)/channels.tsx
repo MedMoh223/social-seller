@@ -120,7 +120,15 @@ export default function ChannelsScreen() {
       // params are an untrusted client-side hop, so /connections is
       // still refetched below regardless of outcome — this result is
       // only used to pick a more specific error message.
-      const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, 'socialseller://');
+      //
+      // createTask: false → le Custom Tab partage la tâche Android de l'app.
+      // Par défaut (true) il ouvre une tâche séparée et ne se ferme pas quand
+      // le deep link socialseller:// est reçu, laissant un écran gris.
+      // Avec false, MainActivity gère le deep link via singleTask/onNewIntent
+      // et le Custom Tab est automatiquement dépilé du back stack.
+      const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, 'socialseller://', {
+        createTask: false,
+      });
 
       if (result.type === 'success' && result.url.startsWith('socialseller://oauth-error')) {
         setErrorMessage('La connexion a échoué. Réessayez plus tard.');

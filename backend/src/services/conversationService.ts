@@ -24,7 +24,7 @@ interface FindOrCreateConversationParams {
 export async function findOrCreateConversation(params: FindOrCreateConversationParams): Promise<string> {
   const { data: existing, error: lookupError } = await supabaseAdmin
     .from('conversations')
-    .select('id')
+    .select('id, status')
     .eq('tenant_id', params.tenantId)
     .eq('platform', params.platform)
     .eq('external_thread_id', params.externalThreadId)
@@ -35,6 +35,13 @@ export async function findOrCreateConversation(params: FindOrCreateConversationP
   }
 
   if (existing) {
+    // Un nouveau message entrant ré-ouvre une conversation résolue
+    if (existing.status === 'resolved') {
+      await supabaseAdmin
+        .from('conversations')
+        .update({ status: 'in_progress' })
+        .eq('id', existing.id);
+    }
     return existing.id as string;
   }
 
