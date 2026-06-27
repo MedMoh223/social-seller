@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 interface OrderItem {
@@ -53,6 +54,7 @@ function formatAmount(amount: number): string {
 }
 
 export default function OrderDetailScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -163,7 +165,7 @@ export default function OrderDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Feather name="arrow-left" size={20} color="#0F172A" />
         </Pressable>
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' },
   emptyText: { fontSize: 14, color: '#64748B' },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingTop: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   backLink: { marginRight: 12 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   card: {

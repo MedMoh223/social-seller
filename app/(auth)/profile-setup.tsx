@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -92,6 +93,7 @@ function SelectField({ label, placeholder, value, options, onChange }: SelectFie
 }
 
 export default function ProfileSetupScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [shopName, setShopName] = useState('');
@@ -205,7 +207,7 @@ export default function ProfileSetupScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 24 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.progressTrack}>
           <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.progressFill} />
         </View>

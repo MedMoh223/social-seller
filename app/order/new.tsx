@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 interface Product {
@@ -44,6 +45,7 @@ function customerLabel(c: Customer): string {
 }
 
 export default function NewOrderScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
     conversationId,
@@ -290,7 +292,7 @@ export default function NewOrderScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
           <Feather name="x" size={20} color="#0F172A" />
         </Pressable>
@@ -545,7 +547,7 @@ export default function NewOrderScreen() {
 
 const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: '#F8FAFC' },
-  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   headerBtn:    { padding: 8 },
   headerTitle:  { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   saveBtn:      { backgroundColor: '#6366F1', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },

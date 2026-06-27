@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 const MAX_IMAGES = 4;
@@ -40,6 +41,7 @@ async function uploadImage(uri: string, tenantId: string): Promise<string> {
 }
 
 export default function NewProductScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -144,7 +146,7 @@ export default function NewProductScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Feather name="arrow-left" size={20} color="#0F172A" />
         </Pressable>
@@ -257,7 +259,7 @@ export default function NewProductScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingTop: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   backLink: { marginRight: 12 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   card: {

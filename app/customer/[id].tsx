@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 interface Customer {
@@ -70,6 +71,7 @@ function formatRelative(iso: string) {
 }
 
 export default function CustomerScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -228,7 +230,7 @@ export default function CustomerScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
           <Feather name="arrow-left" size={20} color="#0F172A" />
         </Pressable>
@@ -444,7 +446,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingTop: 56, paddingBottom: 14,
+    paddingHorizontal: 12, paddingTop: 14, paddingBottom: 14,
     backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
   },
   headerBtn:     { padding: 8 },

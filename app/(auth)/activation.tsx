@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -30,6 +31,7 @@ const STEPS: Record<Channel, string[]> = {
 };
 
 export default function ActivationScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { phone, userEmail } = useLocalSearchParams<{ phone?: string; userEmail?: string }>();
   const email = userEmail;
@@ -98,7 +100,7 @@ export default function ActivationScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 24 }]} keyboardShouldPersistTaps="handled">
         <Pressable style={styles.backLink} onPress={() => router.back()}>
           <Text style={styles.backLinkText}>← Retour</Text>
         </Pressable>
@@ -233,6 +235,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
+    paddingTop: 24, // base — override dynamique via contentContainerStyle
     backgroundColor: '#F8FAFC',
   },
   backLink: { alignSelf: 'flex-start', marginBottom: 24 },

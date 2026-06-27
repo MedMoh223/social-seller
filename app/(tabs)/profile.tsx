@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { isOwner } from '../../lib/userRole';
 
@@ -31,6 +32,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -157,7 +159,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.body}>
       {/* Logo + Nom boutique */}
-      <View style={styles.heroSection}>
+      <View style={[styles.heroSection, { paddingTop: insets.top + 14 }]}>
         <Pressable style={styles.logoWrap} onPress={isOwner() ? handlePickLogo : undefined} disabled={isUploadingLogo || !isOwner()}>
           {isUploadingLogo ? (
             <ActivityIndicator color="#6366F1" />
@@ -259,7 +261,7 @@ const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: '#F8FAFC' },
   body:            { paddingBottom: 40 },
   centered:        { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  heroSection:     { alignItems: 'center', paddingTop: 56, paddingBottom: 28, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  heroSection:     { alignItems: 'center', paddingTop: 14, paddingBottom: 28, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   logoWrap:        { width: 88, height: 88, borderRadius: 44, marginBottom: 14, position: 'relative', alignItems: 'center', justifyContent: 'center' },
   logoImage:       { width: 88, height: 88, borderRadius: 44 },
   logoPlaceholder: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
