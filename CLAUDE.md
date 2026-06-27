@@ -22,14 +22,14 @@ Ne pas attendre que Mohamed demande ce briefing — l'envoyer systématiquement 
 Application SaaS multi-tenant — Djiguitech
 Stack : Expo SDK 54 + TypeScript + Expo Router + Supabase + Node.js/Express (Railway)
 
-## État MVP — 26/06/2026
+## État MVP — 27/06/2026
 
 | Story | Description | État |
 |-------|-------------|------|
 | US-01 | Créer un tenant | ✅ |
 | US-02 | Super Admin suspendre/résilier | ❌ post-MVP |
 | US-03 | Renouvellement abonnement WhatsApp | ❌ post-MVP |
-| US-04 | Activation compte | ⚠️ email seulement |
+| US-04 | Activation compte | ✅ email + auto-confirm |
 | US-05 | Profil boutique + logo | ✅ |
 | US-06 | Connecter WhatsApp Business | ✅ |
 | US-07 | Connecter page Facebook | ✅ |
@@ -41,10 +41,11 @@ Stack : Expo SDK 54 + TypeScript + Expo Router + Supabase + Node.js/Express (Rai
 | US-13 | Créer commande depuis conversation | ✅ |
 | US-14 | Notif statut commande WhatsApp/Facebook | ✅ |
 | US-15 | Liste commandes + filtre + export CSV | ✅ |
-| US-16 | Annuler commande | ⚠️ sans motif ni réappro stock |
+| US-16 | Annuler commande avec motif + réappro stock | ✅ |
 | US-17 | Catalogue produits | ✅ |
 
-**Prochaine priorité : US-16 — Annulation commande avec motif + réappro stock**
+**Hors stories livrés : Dashboard home, Gestion agents, RBAC owner/agent**
+**Prochaine priorité : Tests app RBAC en cours**
 
 ## Bug actif
 
@@ -53,22 +54,43 @@ Stack : Expo SDK 54 + TypeScript + Expo Router + Supabase + Node.js/Express (Rai
   - Fixes appliqués : `createTask: false` dans channels.tsx, `res.redirect(302)` backend, `maybeCompleteAuthSession()` dans oauth-success/error.tsx
   - Nouveau build APK testé — toujours NOK, investigation en cours
 
-## Fixes techniques récents (session 26/06/2026)
+## Fixes techniques récents (session 27/06/2026)
 
-- Meta Graph API messaging v19.0 → v21.0
-- WhatsApp OAuth : long-lived token (~60j) stocké à la connexion
-- Facebook OAuth : page token permanent (tokenExpiresAt = null)
-- Refresh job : POST /internal/token-refresh (Railway cron, toutes les 45j)
-- Fallback connexion active dans messages.ts (disconnect+reconnect ne bloque plus l'envoi)
-- WABA discovery : short-lived token → /me/whatsapp_business_accounts → exchange long-lived (contourne BM)
-- WABA discovery fallback : debug_token + granular_scopes si endpoint BM inaccessible
-- OAuth Android : createTask: false + res.redirect(302) backend + maybeCompleteAuthSession() — bug écran gris toujours en investigation
-- NotificationBehavior SDK 54 : shouldShowBanner + shouldShowList requis
-- Push notifs : groupées par conversation, badge + notifs effacés au retour en premier plan
+- RBAC complet : rôles owner/agent avec permissions différenciées
+- Migration 022 : renommage role 'merchant' → 'owner' (schéma initial utilisait 'merchant')
+- Dashboard home : KPIs, pipeline commandes, revenus, top produits, alertes stock
+- Gestion agents : invite (téléphone + mot de passe temporaire), liste, désactiver, supprimer
+- `(tabs)/_layout.tsx` : chargement du rôle bloquant avant rendu des tabs
+- Produit : upload image Android via FormData, zoom image
+
+## Schéma base de données — valeurs de référence
+
+**RÈGLE : Mettre à jour cette section après chaque migration.**
+
+### Table `public.users`
+- `role` : `'owner'` | `'agent'` | `'super_admin'` *(migration 022 : 'merchant' → 'owner')*
+- `is_active` : boolean (migration 021)
+
+### Table `public.orders`
+- `status` : `'new'` | `'confirmed'` | `'preparing'` | `'shipped'` | `'delivered'` | `'cancelled'`
+
+### Table `public.conversations`
+- `status` : `'in_progress'` | `'resolved'`
+- `platform` : `'whatsapp'` | `'facebook'` | `'tiktok'`
+
+### Table `public.social_connections`
+- `platform` : `'whatsapp'` | `'facebook'` | `'tiktok'`
+- `disconnected_at` : null si connecté, timestamp si déconnecté
+
+### Table `public.products`
+- `is_archived` : boolean (soft delete)
+
+### Migrations appliquées
+001 schéma initial · 002 audit log · 003-022 (voir supabase/migrations/)
+Dernière migration : **022_rename_merchant_role_to_owner.sql**
 
 ## Tâches techniques restantes
 
-- [ ] US-16 : motif annulation + réappro stock auto
 - [ ] Résoudre écran gris OAuth Android
 - [ ] Regenerer database.types.ts via `supabase gen types`
 - [ ] Acheter socialseller.app + DNS + Resend prod
